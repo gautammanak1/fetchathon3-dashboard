@@ -1,0 +1,219 @@
+import {
+  deriveMetro,
+  formatTeamId,
+  isHiddenVenue,
+  normalizeTeamId,
+} from "@/lib/fields"
+import { getActionMap } from "@/lib/actions-store"
+import { getTeamQrMap, teamKey } from "@/lib/team-qr-store"
+import {
+  isNotionConfigured,
+  queryNotionPages,
+  fetchNotionSchema,
+  registrationFromNotionPage,
+} from "@/lib/notion"
+import type {
+  ActionRecord,
+  ChartPoint,
+  Registration,
+  RosterPayload,
+  Team,
+} from "@/lib/types"
+
+function parseSize(value: string) {
+  const n = Number(String(value).replace(/\.0$/, ""))
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+function countBy(items: string[]): ChartPoint[] {
+  const map = new Map<string, number>()
+  for (const item of items) {
+    const key = item || "Unknown"
+    map.set(key, (map.get(key) || 0) + 1)
+  }
+  return [...map.entries()]
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+}
+
+function applyAction(row: Registration, action?: ActionRecord | null): Registration {
+  if (!action) return row
+  return {
+    ...row,
+    rsvp_status: action.rsvp_status,
+    rsvp_sent_at: action.rsvp_sent_at,
+    qr_status: action.qr_status,
+    qr_token: action.qr_token,
+    qr_generated_at: action.qr_generated_at,
+    qr_sent_at: action.qr_sent_at,
+  }
+}
+
+function enrich(rows: Registration[]): { registrations: Registration[]; teams: Team[] } {
+  const grouped = new Map<string, Registration[]>()
+  for (const row of rows) {
+    const tid = normalizeTeamId(row.team_id)
+    const key = tid || `solo-${row.id}`
+    const next = grouped.get(key) || []
+    next.push(row)
+    grouped.set(key, next)
+  }
+
+  const teams: Team[] = []
+  const registrations: Registration[] = []
+
+  for (const [key, members] of grouped) {
+    const submitted = members.filter(
+      (member) => member.status.toLowerCase() === "submitted",
+    )
+    const lead =
+      members.find((member) => member.role.toLowerCase() === "lead") || members[0]
+    const expected =
+      parseSize(lead?.team_size || "") ||
+      members.map((member) => parseSize(member.team_size || "")).find(Boolean) ||
+      null
+    const registered = submitted.length
+    const remaining = expected === null ? null : Math.max(0, expected - registered)
+    const complete = expected !== null && registered >= expected
+    const label = expected
+      ? complete
+        ? `Complete (${registered}/${expected} registered)`
+        : `Incomplete (${registered}/${expected} registered, ${remaining} remaining)`
+      : "Pending lead size"
+    const tid = normalizeTeamId(lead?.team_id || key)
+
+    const team: Team = {
+      team_id: tid,
+      team_id_display: formatTeamId(tid) || tid,
+      lead_name: lead?.name || "Unassigned",
+      lead_email: lead?.email || "",
+      location: lead?.city || "",
+      metro: lead?.metro || deriveMetro(lead?.city || ""),
+      expected_size: expected,
+      registered_count: registered,
+      seats_remaining: remaining,
+      team_status: label,
+      members: [],
+    }
+
+    const enrichedMembers = members.map((member) => ({
+      ...member,
+      team_id: tid || member.team_id,
+      team_id_display: formatTeamId(tid || member.team_id),
+      metro: deriveMetro(member.city),
+      registered_count: String(registered),
+      seats_remaining: remaining === null ? "" : String(remaining),
+      team_status: label,
+    }))
+    team.members = enrichedMembers
+    teams.push(team)
+    registrations.push(...enrichedMembers)
+  }
+
+  teams.sort((a, b) => a.team_id_display.localeCompare(b.team_id_display))
+  registrations.sort((a, b) => a.name.localeCompare(b.name))
+  return { registrations, teams }
+}
+
+function toPayload(
+  source: RosterPayload["source"],
+  configured: boolean,
+  schema: Record<string, string>,
+  raw: Registration[],
+): RosterPayload {
+  const { registrations, teams } = enrich(raw)
+  const submitted = registrations.filter(
+    (row) => row.status.toLowerCase() === "submitted",
+  )
+  return {
+    source,
+    configured,
+    schema,
+    registrations,
+    teams,
+    charts: {
+      byLocation: countBy(submitted.map((row) => row.city)),
+      byCity: countBy(submitted.map((row) => row.metro)),
+      byBuilder: countBy(submitted.map((row) => row.are_you)),
+      byCollege: countBy(submitted.map((row) => row.organization)).slice(0, 8),
+    },
+    stats: {
+      total: registrations.length,
+      submitted: submitted.length,
+      drafts: registrations.length - submitted.length,
+      teams: teams.length,
+      completeTeams: teams.filter((team) =>
+        team.team_status.toLowerCase().startsWith("complete"),
+      ).length,
+      rsvpSent: registrations.filter((row) => row.rsvp_status !== "none").length,
+      qrGenerated: registrations.filter((row) => row.qr_status !== "none").length,
+      qrSent: registrations.filter((row) => row.qr_status === "sent").length,
+    },
+  }
+}
+
+export async function loadRoster(): Promise<RosterPayload> {
+  if (!isNotionConfigured()) {
+    throw new Error("Set NOTION_TOKEN and NOTION_DATABASE_ID in .env")
+  }
+
+  const overlay = await getActionMap()
+  const schema = await fetchNotionSchema()
+  const pages = await queryNotionPages()
+  const raw = pages.map((page) => {
+    const base = registrationFromNotionPage(page, schema)
+    return applyAction(
+      {
+        ...base,
+        team_id_display: formatTeamId(base.team_id),
+        metro: deriveMetro(base.city),
+        rsvp_status: "none",
+        rsvp_sent_at: null,
+        qr_status: "none",
+        qr_token: null,
+        qr_generated_at: null,
+        qr_sent_at: null,
+      },
+      overlay[base.id],
+    )
+  })
+  const visible = raw.filter((row) => !isHiddenVenue(row.city, row.metro))
+  const payload = toPayload("notion", true, schema, visible)
+  const teamQrs = await getTeamQrMap()
+  payload.registrations = payload.registrations.map((row) => {
+    const record = teamQrs[teamKey(row)]
+    if (!record) return row
+    return {
+      ...row,
+      qr_token: record.token,
+      qr_status: record.sent_at ? "sent" : "generated",
+      qr_generated_at: record.generated_at,
+      qr_sent_at: record.sent_at,
+    }
+  })
+  payload.teams = payload.teams.map((team) => ({
+    ...team,
+    members: team.members.map((row) => {
+      const record = teamQrs[teamKey(row)]
+      if (!record) return row
+      return {
+        ...row,
+        qr_token: record.token,
+        qr_status: record.sent_at ? "sent" : "generated",
+        qr_generated_at: record.generated_at,
+        qr_sent_at: record.sent_at,
+      }
+    }),
+  }))
+  payload.stats.qrGenerated = payload.registrations.filter(
+    (row) => row.qr_status !== "none",
+  ).length
+  payload.stats.qrSent = payload.registrations.filter(
+    (row) => row.qr_status === "sent",
+  ).length
+  return payload
+}
+
+export function findRegistration(roster: RosterPayload, id: string) {
+  return roster.registrations.find((row) => row.id === id) || null
+}
