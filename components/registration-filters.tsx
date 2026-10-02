@@ -16,7 +16,14 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import { activeFilterCount, EMPTY_FILTERS, uniqueValues } from "@/lib/filters"
+import {
+  CITY_FILTERS,
+  COLLEGE_FILTERS,
+  EMPTY_FILTERS,
+  LOCATION_FILTERS,
+  activeFilterCount,
+  uniqueValues,
+} from "@/lib/filters"
 import type { Filters, Registration } from "@/lib/types"
 
 function FilterGroup({
@@ -113,13 +120,13 @@ export function RegistrationFilters({
           <div className="grid gap-6 px-4 pb-6">
             <FilterGroup
               title="City"
-              options={uniqueValues(rows, "metro")}
+              options={uniqueValues(rows, "metro", CITY_FILTERS)}
               selected={filters.metro}
               onChange={(metro) => onChange({ ...filters, metro })}
             />
             <FilterGroup
               title="Location"
-              options={uniqueValues(rows, "city")}
+              options={uniqueValues(rows, "city", LOCATION_FILTERS)}
               selected={filters.location}
               onChange={(location) => onChange({ ...filters, location })}
             />
@@ -131,7 +138,7 @@ export function RegistrationFilters({
             />
             <FilterGroup
               title="College / org"
-              options={uniqueValues(rows, "organization")}
+              options={uniqueValues(rows, "organization", COLLEGE_FILTERS)}
               selected={filters.college}
               onChange={(college) => onChange({ ...filters, college })}
             />

@@ -1,4 +1,9 @@
+import { VENUE_OPTIONS } from "@/lib/fields"
 import type { Filters, Registration } from "@/lib/types"
+
+export const LOCATION_FILTERS = VENUE_OPTIONS.map((venue) => venue.label)
+export const CITY_FILTERS = [...new Set(VENUE_OPTIONS.map((venue) => venue.metro))]
+export const COLLEGE_FILTERS = ["Masters' Union"]
 
 export const EMPTY_FILTERS: Filters = {
   q: "",
@@ -50,17 +55,21 @@ export function filterRegistrations(rows: Registration[], filters: Filters) {
   })
 }
 
-export function uniqueValues(rows: Registration[], key: keyof Registration) {
-  return [
-    ...new Set(
-      rows
-        .map((row) => {
-          const value = row[key]
-          return typeof value === "string" ? value : ""
-        })
-        .filter(Boolean),
-    ),
-  ].sort((a, b) => a.localeCompare(b))
+export function uniqueValues(
+  rows: Registration[],
+  key: keyof Registration,
+  known: string[] = [],
+) {
+  const fromRows = rows
+    .map((row) => {
+      const value = row[key]
+      return typeof value === "string" ? value.trim() : ""
+    })
+    .filter(Boolean)
+  const extras = [...new Set(fromRows)]
+    .filter((value) => !known.some((item) => item.toLowerCase() === value.toLowerCase()))
+    .sort((a, b) => a.localeCompare(b))
+  return [...known, ...extras]
 }
 
 export function activeFilterCount(filters: Filters) {
