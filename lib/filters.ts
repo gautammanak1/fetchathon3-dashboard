@@ -13,6 +13,7 @@ export const EMPTY_FILTERS: Filters = {
   college: [],
   role: [],
   status: [],
+  registrationMail: [],
   rsvp: [],
   qr: [],
 }
@@ -49,6 +50,7 @@ export function filterRegistrations(rows: Registration[], filters: Filters) {
       includesAny(row.organization, filters.college) &&
       includesAny(row.role, filters.role) &&
       includesAny(row.status, filters.status) &&
+      includesAny(row.registration_mail_status, filters.registrationMail) &&
       includesAny(row.rsvp_status, filters.rsvp) &&
       includesAny(row.qr_status, filters.qr)
     )
@@ -81,6 +83,7 @@ export function activeFilterCount(filters: Filters) {
     filters.college.length +
     filters.role.length +
     filters.status.length +
+    filters.registrationMail.length +
     filters.rsvp.length +
     filters.qr.length
   )

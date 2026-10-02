@@ -12,12 +12,15 @@ import { getTeamQrMap, teamKey } from "@/lib/team-qr-store"
 import {
   isNotionConfigured,
   queryNotionPages,
+  actionFieldsFromNotionPage,
   fetchNotionSchema,
   registrationFromNotionPage,
 } from "@/lib/notion"
+import { deriveTeamQrToken } from "@/lib/qr"
 import type {
   ActionRecord,
   ChartPoint,
+  QrStatus,
   Registration,
   RosterPayload,
   Team,
@@ -51,14 +54,18 @@ function applyAction(row: Registration, action?: ActionRecord | null): Registrat
   if (!action) return row
   return {
     ...row,
-    registration_mail_status: action.registration_mail_status || "none",
-    registration_mail_sent_at: action.registration_mail_sent_at || null,
-    rsvp_status: action.rsvp_status,
-    rsvp_sent_at: action.rsvp_sent_at,
-    qr_status: action.qr_status,
-    qr_token: action.qr_token,
-    qr_generated_at: action.qr_generated_at,
-    qr_sent_at: action.qr_sent_at,
+    registration_mail_status:
+      action.registration_mail_status !== "none"
+        ? action.registration_mail_status
+        : row.registration_mail_status,
+    registration_mail_sent_at:
+      action.registration_mail_sent_at || row.registration_mail_sent_at,
+    rsvp_status: action.rsvp_status !== "none" ? action.rsvp_status : row.rsvp_status,
+    rsvp_sent_at: action.rsvp_sent_at || row.rsvp_sent_at,
+    qr_status: action.qr_status !== "none" ? action.qr_status : row.qr_status,
+    qr_token: action.qr_token || row.qr_token,
+    qr_generated_at: action.qr_generated_at || row.qr_generated_at,
+    qr_sent_at: action.qr_sent_at || row.qr_sent_at,
   }
 }
 
@@ -171,6 +178,9 @@ function toPayload(
       completeTeams: teams.filter((team) =>
         team.team_status.toLowerCase().startsWith("complete"),
       ).length,
+      registrationMailSent: registrations.filter(
+        (row) => row.registration_mail_status === "sent",
+      ).length,
       rsvpSent: registrations.filter((row) => row.rsvp_status !== "none").length,
       qrGenerated: registrations.filter((row) => row.qr_status !== "none").length,
       qrSent: registrations.filter((row) => row.qr_status === "sent").length,
@@ -188,16 +198,17 @@ export async function loadRoster(): Promise<RosterPayload> {
   const pages = await queryNotionPages()
   const raw = pages.map((page) => {
     const base = registrationFromNotionPage(page, schema)
+    const fromNotion = actionFieldsFromNotionPage(page)
     return applyAction(
       {
         ...base,
         team_id_display: formatTeamId(base.team_id),
         metro: deriveMetro(base.city),
-        registration_mail_status: "none",
+        registration_mail_status: fromNotion.registration_mail_status,
         registration_mail_sent_at: null,
-        rsvp_status: "none",
+        rsvp_status: fromNotion.rsvp_status,
         rsvp_sent_at: null,
-        qr_status: "none",
+        qr_status: fromNotion.qr_status,
         qr_token: null,
         qr_generated_at: null,
         qr_sent_at: null,
@@ -208,30 +219,29 @@ export async function loadRoster(): Promise<RosterPayload> {
   const visible = raw.filter((row) => !isHiddenVenue(row.city, row.metro))
   const payload = toPayload("notion", true, schema, visible)
   const teamQrs = await getTeamQrMap()
-  payload.registrations = payload.registrations.map((row) => {
+  const attachQr = (row: Registration) => {
     const record = teamQrs[teamKey(row)]
-    if (!record) return row
+    const token = record?.token || deriveTeamQrToken(teamKey(row))
+    if (row.qr_status === "none" && !record) {
+      return { ...row, qr_token: token }
+    }
+    const qrStatus: QrStatus = record?.sent_at || row.qr_status === "sent"
+      ? "sent"
+      : row.qr_status === "none"
+        ? "generated"
+        : row.qr_status
     return {
       ...row,
-      qr_token: record.token,
-      qr_status: record.sent_at ? "sent" : "generated",
-      qr_generated_at: record.generated_at,
-      qr_sent_at: record.sent_at,
+      qr_token: token,
+      qr_status: qrStatus,
+      qr_generated_at: record?.generated_at || row.qr_generated_at,
+      qr_sent_at: record?.sent_at || row.qr_sent_at,
     }
-  })
+  }
+  payload.registrations = payload.registrations.map(attachQr)
   payload.teams = payload.teams.map((team) => ({
     ...team,
-    members: team.members.map((row) => {
-      const record = teamQrs[teamKey(row)]
-      if (!record) return row
-      return {
-        ...row,
-        qr_token: record.token,
-        qr_status: record.sent_at ? "sent" : "generated",
-        qr_generated_at: record.generated_at,
-        qr_sent_at: record.sent_at,
-      }
-    }),
+    members: team.members.map(attachQr),
   }))
   payload.stats.qrGenerated = payload.registrations.filter(
     (row) => row.qr_status !== "none",

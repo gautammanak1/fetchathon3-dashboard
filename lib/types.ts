@@ -85,6 +85,7 @@ export type RosterPayload = {
     drafts: number
     teams: number
     completeTeams: number
+    registrationMailSent: number
     rsvpSent: number
     qrGenerated: number
     qrSent: number
@@ -99,6 +100,7 @@ export type Filters = {
   college: string[]
   role: string[]
   status: string[]
+  registrationMail: string[]
   rsvp: string[]
   qr: string[]
 }

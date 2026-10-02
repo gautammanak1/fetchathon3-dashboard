@@ -40,11 +40,15 @@ export function ActionBar({
   const count = selected.length
   const filteredCount = filtered.length
   const teamCount = new Set(selected.map((row) => row.team_id || row.id)).size
-  const rsvpReady = count > 0
-  const qrReady =
-    count > 0 && selected.every((row) => row.rsvp_status !== "none")
-  const sendReady =
-    count > 0 && selected.every((row) => row.qr_status !== "none")
+  const pendingRegistration = selected.filter(
+    (row) => row.registration_mail_status !== "sent",
+  )
+  const alreadyMailed = count - pendingRegistration.length
+  const registrationReady = pendingRegistration.length > 0
+  const pendingRsvp = selected.filter((row) => row.rsvp_status === "none")
+  const rsvpReady = pendingRsvp.length > 0
+  const qrReady = count > 0
+  const sendReady = count > 0 && selected.some((row) => row.qr_status !== "sent")
 
   if (!canManage) {
     return null
@@ -61,7 +65,7 @@ export function ActionBar({
       </p>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="default" disabled={!rsvpReady || busy}>
+          <Button variant="default" disabled={!registrationReady || busy}>
             <MailIcon />
             Send registration
           </Button>
@@ -70,9 +74,12 @@ export function ActionBar({
           <AlertDialogHeader>
             <AlertDialogTitle>Send registration confirmation?</AlertDialogTitle>
             <AlertDialogDescription>
-              {count === 1
-                ? `This emails only ${selected[0]?.email || "this person"} the registration confirmation and Discord invite.`
-                : `This emails ${count} selected people the registration confirmation and Discord invite.`}
+              {pendingRegistration.length === 1
+                ? `This emails only ${pendingRegistration[0]?.email || "this person"} the registration confirmation and Discord invite.`
+                : `This emails ${pendingRegistration.length} people who have not received registration mail yet.`}
+              {alreadyMailed > 0
+                ? ` ${alreadyMailed} already mailed ${alreadyMailed === 1 ? "person is" : "people are"} skipped.`
+                : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -116,7 +123,7 @@ export function ActionBar({
           <AlertDialogHeader>
             <AlertDialogTitle>Bulk RSVP all filtered?</AlertDialogTitle>
             <AlertDialogDescription>
-              This sends one email per team in the current filter ({filteredCount} people). Teammates are CC'd. No extra individual copies.
+              This emails teams in the current filter that have not received RSVP yet. Already-sent teams are skipped.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -146,8 +153,8 @@ export function ActionBar({
           <AlertDialogHeader>
             <AlertDialogTitle>Send venue QR emails?</AlertDialogTitle>
             <AlertDialogDescription>
-              Each team gets one QR email. Teammates are CC'd. Scanning the QR
-              opens the team pass page.
+              This generates the team QR if needed and emails it once. Teammates
+              are CC'd. Scanning the QR opens the team pass page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

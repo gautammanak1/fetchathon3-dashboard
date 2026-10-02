@@ -28,6 +28,10 @@ export async function sendRegistrationEmails(rows: Registration[]): Promise<Send
   const transporter = createSmtpTransport()
   try {
     for (const row of rows) {
+      if (row.registration_mail_status === "sent") {
+        result.skipped.push({ id: row.id, reason: "Registration mail already sent" })
+        continue
+      }
       const email = row.email.trim()
       if (!EMAIL_RE.test(email)) {
         result.skipped.push({ id: row.id, reason: "Missing or invalid email" })

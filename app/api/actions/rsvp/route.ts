@@ -35,8 +35,25 @@ export async function POST(request: Request) {
   const rows = ids
     .map((id) => findRegistration(roster, id))
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
+  const groups = teamMailGroups(rows, roster.registrations).filter((group) =>
+    group.members.some((member) => member.rsvp_status === "none"),
+  )
+  if (groups.length === 0) {
+    return NextResponse.json({
+      ok: true,
+      count: 0,
+      sent: 0,
+      sentIds: [],
+      failed: [],
+      skipped: rows.map((row) => ({
+        id: row.id,
+        reason: "RSVP already sent",
+      })),
+      note: "No new RSVP emails. Selected teams already received seat confirmation.",
+    })
+  }
 
-  const result = await sendRsvpEmails(teamMailGroups(rows, roster.registrations))
+  const result = await sendRsvpEmails(groups)
 
   const sentAt = new Date().toISOString()
   if (result.sentIds.length) {

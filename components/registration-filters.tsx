@@ -157,6 +157,14 @@ export function RegistrationFilters({
             {showActions ? (
               <>
                 <FilterGroup
+                  title="Registration mail"
+                  options={["none", "sent"]}
+                  selected={filters.registrationMail}
+                  onChange={(registrationMail) =>
+                    onChange({ ...filters, registrationMail })
+                  }
+                />
+                <FilterGroup
                   title="RSVP"
                   options={["none", "sent", "confirmed"]}
                   selected={filters.rsvp}

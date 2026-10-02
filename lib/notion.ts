@@ -1,5 +1,12 @@
-import { extractDatabaseId, parseFieldMap } from "@/lib/fields"
-import type { Registration } from "@/lib/types"
+import {
+  ACTION_FIELDS,
+  QR_FIELD_ALIASES,
+  REGISTRATION_MAIL_FIELD_ALIASES,
+  RSVP_FIELD_ALIASES,
+  extractDatabaseId,
+  parseFieldMap,
+} from "@/lib/fields"
+import type { QrStatus, Registration, RsvpStatus } from "@/lib/types"
 
 const NOTION_API = "https://api.notion.com/v1"
 
@@ -81,6 +88,59 @@ function plainFromProp(prop: unknown): string {
   return ""
 }
 
+function schemaFromProperties(
+  properties: Record<string, { type?: string }> | undefined,
+) {
+  const schema: Record<string, string> = {}
+  for (const [name, meta] of Object.entries(properties || {})) {
+    schema[name] = meta.type || ""
+  }
+  return schema
+}
+
+function hasColumn(schema: Record<string, string>, names: string[]) {
+  return Boolean(schemaColumn(schema, names))
+}
+
+async function ensureActionColumns(schema: Record<string, string>) {
+  const missing: Record<string, unknown> = {}
+  if (!hasColumn(schema, REGISTRATION_MAIL_FIELD_ALIASES)) {
+    missing[ACTION_FIELDS.registration_mail_status] = {
+      select: { options: [{ name: "None" }, { name: "Sent" }] },
+    }
+  }
+  if (!hasColumn(schema, RSVP_FIELD_ALIASES)) {
+    missing[ACTION_FIELDS.rsvp_status] = {
+      select: { options: [{ name: "None" }, { name: "Sent" }, { name: "Confirmed" }] },
+    }
+  }
+  if (!hasColumn(schema, QR_FIELD_ALIASES)) {
+    missing[ACTION_FIELDS.qr_status] = {
+      select: {
+        options: [{ name: "None" }, { name: "Generated" }, { name: "Sent" }],
+      },
+    }
+  }
+  if (Object.keys(missing).length === 0) return schema
+  const dbId = extractDatabaseId(databaseRef())
+  const response = await fetch(`${NOTION_API}/databases/${dbId}`, {
+    method: "PATCH",
+    headers: headers(),
+    cache: "no-store",
+    body: JSON.stringify({ properties: missing }),
+  })
+  if (!response.ok) {
+    console.error(
+      `Could not add Notion mail columns HTTP ${response.status}: ${(await response.text()).slice(0, 200)}`,
+    )
+    return schema
+  }
+  const data = (await response.json()) as {
+    properties?: Record<string, { type?: string }>
+  }
+  return schemaFromProperties(data.properties)
+}
+
 export async function fetchNotionSchema() {
   const dbId = extractDatabaseId(databaseRef())
   const response = await fetch(`${NOTION_API}/databases/${dbId}`, {
@@ -93,11 +153,7 @@ export async function fetchNotionSchema() {
   const data = (await response.json()) as {
     properties?: Record<string, { type?: string }>
   }
-  const schema: Record<string, string> = {}
-  for (const [name, meta] of Object.entries(data.properties || {})) {
-    schema[name] = meta.type || ""
-  }
-  return schema
+  return ensureActionColumns(schemaFromProperties(data.properties))
 }
 
 export async function queryNotionPages() {
@@ -127,6 +183,54 @@ export async function queryNotionPages() {
     cursor = data.has_more && data.next_cursor ? data.next_cursor : undefined
   } while (cursor)
   return pages
+}
+
+function mapRsvpStatus(value: string): RsvpStatus {
+  const text = value.trim().toLowerCase()
+  if (!text || text === "none" || text === "no") return "none"
+  if (text.includes("confirm")) return "confirmed"
+  return "sent"
+}
+
+function mapQrStatus(value: string): QrStatus {
+  const text = value.trim().toLowerCase()
+  if (!text || text === "none" || text === "no") return "none"
+  if (text.includes("sent")) return "sent"
+  if (text.includes("generat") || text.includes("ready")) return "generated"
+  return "none"
+}
+
+function plainFromNamedProps(
+  props: Record<string, unknown>,
+  names: string[],
+) {
+  for (const name of names) {
+    if (props[name]) return plainFromProp(props[name])
+  }
+  const keys = Object.keys(props)
+  for (const name of names) {
+    const hit = keys.find((key) => key.toLowerCase() === name.toLowerCase())
+    if (hit) return plainFromProp(props[hit])
+  }
+  return ""
+}
+
+function mapMailStatus(value: string): "none" | "sent" {
+  const text = value.trim().toLowerCase()
+  if (!text || text === "none" || text === "no") return "none"
+  if (text.includes("sent") || text.includes("yes")) return "sent"
+  return "none"
+}
+
+export function actionFieldsFromNotionPage(page: Record<string, unknown>) {
+  const props = (page.properties || {}) as Record<string, unknown>
+  return {
+    registration_mail_status: mapMailStatus(
+      plainFromNamedProps(props, REGISTRATION_MAIL_FIELD_ALIASES),
+    ),
+    rsvp_status: mapRsvpStatus(plainFromNamedProps(props, RSVP_FIELD_ALIASES)),
+    qr_status: mapQrStatus(plainFromNamedProps(props, QR_FIELD_ALIASES)),
+  }
 }
 
 export function registrationFromNotionPage(
@@ -195,17 +299,43 @@ function coerceProperty(notionType: string, text: string) {
   if (notionType === "status") {
     return text ? { status: { name: text } } : { status: null }
   }
+  if (notionType === "checkbox") {
+    const on =
+      Boolean(text) && !["none", "no", "false"].includes(text.toLowerCase())
+    return { checkbox: on }
+  }
+  return null
+}
+
+function schemaColumn(schema: Record<string, string>, names: string[]) {
+  for (const name of names) {
+    if (schema[name]) return name
+  }
+  const keys = Object.keys(schema)
+  for (const name of names) {
+    const hit = keys.find((key) => key.toLowerCase() === name.toLowerCase())
+    if (hit) return hit
+  }
   return null
 }
 
 export async function updateNotionActionFields(
   pageId: string,
-  values: { rsvp_status?: string; qr_status?: string },
+  values: {
+    registration_mail_status?: string
+    rsvp_status?: string
+    qr_status?: string
+  },
   schema: Record<string, string>,
 ) {
   const properties: Record<string, unknown> = {}
-  const rsvpCol = schema["RSVP Status"] ? "RSVP Status" : null
-  const qrCol = schema["QR Status"] ? "QR Status" : null
+  const mailCol = schemaColumn(schema, REGISTRATION_MAIL_FIELD_ALIASES)
+  const rsvpCol = schemaColumn(schema, RSVP_FIELD_ALIASES)
+  const qrCol = schemaColumn(schema, QR_FIELD_ALIASES)
+  if (mailCol && values.registration_mail_status) {
+    const shaped = coerceProperty(schema[mailCol], values.registration_mail_status)
+    if (shaped) properties[mailCol] = shaped
+  }
   if (rsvpCol && values.rsvp_status) {
     const shaped = coerceProperty(schema[rsvpCol], values.rsvp_status)
     if (shaped) properties[rsvpCol] = shaped

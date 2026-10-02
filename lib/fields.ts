@@ -21,9 +21,19 @@ export const DEFAULT_FIELDS = {
 } as const
 
 export const ACTION_FIELDS = {
+  registration_mail_status: "Registration Mail",
   rsvp_status: "RSVP Status",
   qr_status: "QR Status",
 } as const
+
+export const REGISTRATION_MAIL_FIELD_ALIASES = [
+  "Registration Mail",
+  "Reg Mail",
+  "Registration Mail Status",
+]
+
+export const RSVP_FIELD_ALIASES = ["RSVP Status", "RSVP", "Rsvp Status"]
+export const QR_FIELD_ALIASES = ["QR Status", "QR", "Qr Status"]
 
 export type FieldKey = keyof typeof DEFAULT_FIELDS
 

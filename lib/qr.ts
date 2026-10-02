@@ -1,10 +1,21 @@
-import { randomBytes } from "node:crypto"
+import { createHmac, randomBytes } from "node:crypto"
 import QRCode from "qrcode"
 
 import { teamPassUrl } from "@/lib/pass-url"
 
 export function makeQrToken() {
   return `ft3-${randomBytes(6).toString("hex")}`
+}
+
+export function deriveTeamQrToken(teamKey: string) {
+  const secret =
+    process.env.AUTH_SECRET ||
+    process.env.QR_SECRET ||
+    "fetchathon3-qr"
+  return `ft3-${createHmac("sha256", secret)
+    .update(`qr:${teamKey}`)
+    .digest("hex")
+    .slice(0, 12)}`
 }
 
 export function teamQrPayload(input: {

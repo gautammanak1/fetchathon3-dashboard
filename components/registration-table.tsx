@@ -85,6 +85,7 @@ export function RegistrationTable({
               <TableHead>Status</TableHead>
               {showActions ? (
                 <>
+                  <TableHead>Reg mail</TableHead>
                   <TableHead>RSVP</TableHead>
                   <TableHead>QR</TableHead>
                 </>
@@ -95,7 +96,7 @@ export function RegistrationTable({
             {visible.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={(selectable ? 10 : 9) + (showActions ? 2 : 0)}
+                  colSpan={(selectable ? 10 : 9) + (showActions ? 3 : 0)}
                   className="h-24 text-center"
                 >
                   No registrations match these filters.
@@ -139,6 +140,9 @@ export function RegistrationTable({
                   </TableCell>
                   {showActions ? (
                     <>
+                      <TableCell>
+                        <StatusBadge value={row.registration_mail_status} />
+                      </TableCell>
                       <TableCell>
                         <StatusBadge value={row.rsvp_status} />
                       </TableCell>

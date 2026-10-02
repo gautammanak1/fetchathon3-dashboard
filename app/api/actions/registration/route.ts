@@ -5,6 +5,11 @@ import { requireAdmin } from "@/lib/require-admin"
 import { findRegistration, loadRoster } from "@/lib/roster"
 import { resultNote, sendRegistrationEmails } from "@/lib/send-bulk"
 import { isSmtpConfigured } from "@/lib/smtp"
+import {
+  fetchNotionSchema,
+  isNotionConfigured,
+  updateNotionActionFields,
+} from "@/lib/notion"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -29,8 +34,23 @@ export async function POST(request: Request) {
   const rows = ids
     .map((id) => findRegistration(roster, id))
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
+  const pending = rows.filter((row) => row.registration_mail_status !== "sent")
+  if (pending.length === 0) {
+    return NextResponse.json({
+      ok: true,
+      count: 0,
+      sent: 0,
+      sentIds: [],
+      failed: [],
+      skipped: rows.map((row) => ({
+        id: row.id,
+        reason: "Registration mail already sent",
+      })),
+      note: "No new registration emails. Everyone selected already received one.",
+    })
+  }
 
-  const result = await sendRegistrationEmails(rows)
+  const result = await sendRegistrationEmails(pending)
 
   const sentAt = new Date().toISOString()
   if (result.sentIds.length) {
@@ -38,6 +58,22 @@ export async function POST(request: Request) {
       registration_mail_status: "sent",
       registration_mail_sent_at: sentAt,
     })
+    if (isNotionConfigured()) {
+      try {
+        const schema = await fetchNotionSchema()
+        await Promise.all(
+          result.sentIds.map((id) =>
+            updateNotionActionFields(
+              id,
+              { registration_mail_status: "Sent" },
+              schema,
+            ).catch(() => undefined),
+          ),
+        )
+      } catch {
+        // Overlay remains if Notion write fails.
+      }
+    }
   }
 
   return NextResponse.json({

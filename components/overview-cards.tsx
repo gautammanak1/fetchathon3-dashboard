@@ -28,6 +28,11 @@ export function OverviewCards({
     ...(showActions
       ? [
           {
+            label: "Reg mail sent",
+            value: stats.registrationMailSent,
+            hint: "Registration confirmation already emailed",
+          },
+          {
             label: "RSVP sent",
             value: stats.rsvpSent,
             hint: "Seat confirmation before team QR",

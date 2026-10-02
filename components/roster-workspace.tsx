@@ -84,9 +84,27 @@ export function RosterWorkspace({
         filtered={filtered}
         busy={busy}
         canManage={isAdmin}
-        onRegistration={() => void onRegistration(selected.map((row) => row.id))}
-        onRsvp={() => void onRsvp(selected.map((row) => row.id))}
-        onRsvpAll={() => void onRsvp(filtered.map((row) => row.id))}
+        onRegistration={() =>
+          void onRegistration(
+            selected
+              .filter((row) => row.registration_mail_status !== "sent")
+              .map((row) => row.id),
+          )
+        }
+        onRsvp={() =>
+          void onRsvp(
+            selected
+              .filter((row) => row.rsvp_status === "none")
+              .map((row) => row.id),
+          )
+        }
+        onRsvpAll={() =>
+          void onRsvp(
+            filtered
+              .filter((row) => row.rsvp_status === "none")
+              .map((row) => row.id),
+          )
+        }
         onGenerateQr={() => void onGenerateQr(selected.map((row) => row.id))}
         onSendQr={() => void onSendQr(selected.map((row) => row.id))}
       />
@@ -111,7 +129,11 @@ export function RosterWorkspace({
         busy={busy}
         onClose={() => setOpenRow(null)}
         onPreviewQr={(id) => void previewQr(id)}
-        onRegistration={(id) => void onRegistration([id])}
+        onRegistration={(id) => {
+          const row = rows.find((item) => item.id === id)
+          if (!row || row.registration_mail_status === "sent") return
+          void onRegistration([id])
+        }}
         onRsvp={(id) => void onRsvp([id])}
         onGenerateQr={(id) => void onGenerateQr([id])}
         onSendQr={(id) => void onSendQr([id])}

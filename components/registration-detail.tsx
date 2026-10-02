@@ -111,8 +111,12 @@ export function RegistrationDetail({
                 <div className="grid gap-2">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button disabled={busy}>
-                        Send registration to this person
+                      <Button
+                        disabled={busy || row.registration_mail_status === "sent"}
+                      >
+                        {row.registration_mail_status === "sent"
+                          ? "Registration mail already sent"
+                          : "Send registration to this person"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -135,7 +139,14 @@ export function RegistrationDetail({
                   </AlertDialog>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="outline" disabled={busy}>Send RSVP to this team</Button>
+                      <Button
+                        variant="outline"
+                        disabled={busy || row.rsvp_status !== "none"}
+                      >
+                        {row.rsvp_status !== "none"
+                          ? "RSVP already sent"
+                          : "Send RSVP to this team"}
+                      </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
@@ -155,7 +166,7 @@ export function RegistrationDetail({
                   </AlertDialog>
                   <Button
                     variant="outline"
-                    disabled={busy || row.rsvp_status === "none"}
+                    disabled={busy}
                     onClick={() => onGenerateQr(row.id)}
                   >
                     Generate this team QR
@@ -164,7 +175,7 @@ export function RegistrationDetail({
                     <AlertDialogTrigger asChild>
                       <Button
                         variant="outline"
-                        disabled={busy || row.qr_status === "none"}
+                        disabled={busy || row.qr_status === "sent"}
                       >
                         Send team QR
                       </Button>
@@ -173,8 +184,9 @@ export function RegistrationDetail({
                       <AlertDialogHeader>
                         <AlertDialogTitle>Send team venue QR?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This emails one QR to {row.team_id_display || "this team"}.
-                          Teammates are CC'd. Scanning it opens the team pass.
+                          {row.qr_status === "sent"
+                            ? "This team already received the QR email."
+                            : `This generates the QR if needed and emails ${row.team_id_display || "this team"}. Teammates are CC'd.`}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
