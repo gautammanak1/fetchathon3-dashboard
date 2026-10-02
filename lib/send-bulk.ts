@@ -1,5 +1,16 @@
-import { qrHtml, qrSubject, qrText, rsvpHtml, rsvpSubject, rsvpText } from "@/lib/email-templates"
+import {
+  qrHtml,
+  qrSubject,
+  qrText,
+  registrationHtml,
+  registrationSubject,
+  registrationText,
+  rsvpHtml,
+  rsvpSubject,
+  rsvpText,
+} from "@/lib/email-templates"
 import { createSmtpTransport, EMAIL_RE, sendSmtpMail, sleep } from "@/lib/smtp"
+import { type TeamMailGroup } from "@/lib/team-mail"
 import { teamQrImage, type TeamQrRecord } from "@/lib/team-qr-store"
 import type { Registration } from "@/lib/types"
 
@@ -12,7 +23,7 @@ export type SendResult = {
 
 const SEND_GAP_MS = 250
 
-export async function sendRsvpEmails(rows: Registration[]): Promise<SendResult> {
+export async function sendRegistrationEmails(rows: Registration[]): Promise<SendResult> {
   const result: SendResult = { sent: 0, sentIds: [], failed: [], skipped: [] }
   const transporter = createSmtpTransport()
   try {
@@ -27,9 +38,9 @@ export async function sendRsvpEmails(rows: Registration[]): Promise<SendResult> 
           {
             to: email,
             toName: row.name,
-            subject: rsvpSubject(),
-            text: rsvpText(row),
-            html: rsvpHtml(row),
+            subject: registrationSubject(),
+            text: registrationText(row),
+            html: registrationHtml(row),
           },
           transporter,
         )
@@ -50,25 +61,85 @@ export async function sendRsvpEmails(rows: Registration[]): Promise<SendResult> 
   return result
 }
 
+function markGroupFailed(
+  result: SendResult,
+  group: TeamMailGroup,
+  error: string,
+) {
+  for (const member of group.members) {
+    result.failed.push({
+      id: member.id,
+      email: member.email,
+      error,
+    })
+  }
+}
+
+function markGroupSkipped(
+  result: SendResult,
+  group: TeamMailGroup,
+  reason: string,
+) {
+  for (const member of group.members) {
+    result.skipped.push({ id: member.id, reason })
+  }
+}
+
+export async function sendRsvpEmails(groups: TeamMailGroup[]): Promise<SendResult> {
+  const result: SendResult = { sent: 0, sentIds: [], failed: [], skipped: [] }
+  const transporter = createSmtpTransport()
+  try {
+    for (const group of groups) {
+      if (!EMAIL_RE.test(group.to.email)) {
+        markGroupSkipped(result, group, "Missing or invalid email")
+        continue
+      }
+      try {
+        await sendSmtpMail(
+          {
+            to: group.to.email,
+            toName: group.to.name,
+            cc: group.cc.map((item) => item.email),
+            subject: rsvpSubject(),
+            text: rsvpText(group.primary, group.members),
+            html: rsvpHtml(group.primary, group.members),
+          },
+          transporter,
+        )
+        result.sent += 1
+        result.sentIds.push(...group.members.map((member) => member.id))
+      } catch (error) {
+        markGroupFailed(
+          result,
+          group,
+          error instanceof Error ? error.message : "SMTP send failed",
+        )
+      }
+      await sleep(SEND_GAP_MS)
+    }
+  } finally {
+    transporter.close()
+  }
+  return result
+}
+
 export async function sendTeamQrEmails(
-  rows: Registration[],
-  recordFor: (row: Registration) => TeamQrRecord | null,
-  membersFor: (row: Registration) => string[],
+  groups: TeamMailGroup[],
+  recordFor: (group: TeamMailGroup) => TeamQrRecord | null,
 ): Promise<SendResult> {
   const result: SendResult = { sent: 0, sentIds: [], failed: [], skipped: [] }
   const imageCache = new Map<string, Awaited<ReturnType<typeof teamQrImage>>>()
   const transporter = createSmtpTransport()
 
   try {
-    for (const row of rows) {
-      const email = row.email.trim()
-      if (!EMAIL_RE.test(email)) {
-        result.skipped.push({ id: row.id, reason: "Missing or invalid email" })
+    for (const group of groups) {
+      if (!EMAIL_RE.test(group.to.email)) {
+        markGroupSkipped(result, group, "Missing or invalid email")
         continue
       }
-      const record = recordFor(row)
+      const record = recordFor(group)
       if (!record) {
-        result.skipped.push({ id: row.id, reason: "Team QR not generated" })
+        markGroupSkipped(result, group, "Team QR not generated")
         continue
       }
       try {
@@ -77,22 +148,24 @@ export async function sendTeamQrEmails(
           image = await teamQrImage(record)
           imageCache.set(record.team_key, image)
         }
+        const memberNames = group.members.map((member) => member.name).filter(Boolean)
         await sendSmtpMail(
           {
-            to: email,
-            toName: row.name,
+            to: group.to.email,
+            toName: group.to.name,
+            cc: group.cc.map((item) => item.email),
             subject: qrSubject(record.team_id_display),
             text: qrText({
-              row,
+              row: group.primary,
               teamIdDisplay: record.team_id_display,
               venue: record.venue,
-              memberNames: membersFor(row),
+              memberNames,
             }),
             html: qrHtml({
-              row,
+              row: group.primary,
               teamIdDisplay: record.team_id_display,
               venue: record.venue,
-              memberNames: membersFor(row),
+              memberNames,
             }),
             attachments: [
               {
@@ -106,13 +179,13 @@ export async function sendTeamQrEmails(
           transporter,
         )
         result.sent += 1
-        result.sentIds.push(row.id)
+        result.sentIds.push(...group.members.map((member) => member.id))
       } catch (error) {
-        result.failed.push({
-          id: row.id,
-          email,
-          error: error instanceof Error ? error.message : "SMTP send failed",
-        })
+        markGroupFailed(
+          result,
+          group,
+          error instanceof Error ? error.message : "SMTP send failed",
+        )
       }
       await sleep(SEND_GAP_MS)
     }
@@ -123,7 +196,10 @@ export async function sendTeamQrEmails(
 }
 
 export function resultNote(kind: string, result: SendResult) {
-  const parts = [`${result.sent} ${kind} emails sent`]
+  const people = result.sentIds.length
+  const parts = [
+    `${result.sent} ${kind} ${result.sent === 1 ? "email" : "emails"} sent to ${people} ${people === 1 ? "person" : "people"}`,
+  ]
   if (result.failed.length) parts.push(`${result.failed.length} failed`)
   if (result.skipped.length) parts.push(`${result.skipped.length} skipped`)
   return parts.join(" · ")
@@ -160,6 +236,9 @@ function sampleTestRow(): Registration {
     seats_remaining: "0",
     team_status: "Complete (3/3 registered)",
     status: "Submitted",
+    created_at: new Date().toISOString(),
+    registration_mail_status: "none",
+    registration_mail_sent_at: null,
     rsvp_status: "none",
     rsvp_sent_at: null,
     qr_status: "none",
@@ -170,13 +249,23 @@ function sampleTestRow(): Registration {
   }
 }
 
-export async function sendTestInboxEmails(kinds: Array<"rsvp" | "qr">) {
+export async function sendTestInboxEmails(kinds: Array<"registration" | "rsvp" | "qr">) {
   const to = testInbox()
   if (!EMAIL_RE.test(to)) {
     throw new Error("SMTP_TEST_TO is not a valid email")
   }
   const row = sampleTestRow()
   const sent: string[] = []
+  if (kinds.includes("registration")) {
+    await sendSmtpMail({
+      to,
+      toName: row.name,
+      subject: registrationSubject(),
+      text: registrationText(row),
+      html: registrationHtml(row),
+    })
+    sent.push("registration")
+  }
   if (kinds.includes("rsvp")) {
     await sendSmtpMail({
       to,

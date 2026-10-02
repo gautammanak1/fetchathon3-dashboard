@@ -1,7 +1,10 @@
 import {
+  VENUE_OPTIONS,
   deriveMetro,
   formatTeamId,
+  formatVenue,
   isHiddenVenue,
+  normalizeOrganization,
   normalizeTeamId,
 } from "@/lib/fields"
 import { getActionMap } from "@/lib/actions-store"
@@ -25,21 +28,31 @@ function parseSize(value: string) {
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
-function countBy(items: string[]): ChartPoint[] {
-  const map = new Map<string, number>()
+function countBy(items: string[], known: string[] = []): ChartPoint[] {
+  const map = new Map<string, number>(known.map((name) => [name, 0]))
   for (const item of items) {
     const key = item || "Unknown"
     map.set(key, (map.get(key) || 0) + 1)
   }
   return [...map.entries()]
     .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
+    .sort((a, b) => {
+      if (b.value !== a.value) return b.value - a.value
+      const aKnown = known.indexOf(a.name)
+      const bKnown = known.indexOf(b.name)
+      if (aKnown !== -1 || bKnown !== -1) {
+        return (aKnown === -1 ? known.length : aKnown) - (bKnown === -1 ? known.length : bKnown)
+      }
+      return a.name.localeCompare(b.name)
+    })
 }
 
 function applyAction(row: Registration, action?: ActionRecord | null): Registration {
   if (!action) return row
   return {
     ...row,
+    registration_mail_status: action.registration_mail_status || "none",
+    registration_mail_sent_at: action.registration_mail_sent_at || null,
     rsvp_status: action.rsvp_status,
     rsvp_sent_at: action.rsvp_sent_at,
     qr_status: action.qr_status,
@@ -100,7 +113,9 @@ function enrich(rows: Registration[]): { registrations: Registration[]; teams: T
       ...member,
       team_id: tid || member.team_id,
       team_id_display: formatTeamId(tid || member.team_id),
+      city: formatVenue(member.city) || member.city,
       metro: deriveMetro(member.city),
+      organization: normalizeOrganization(member.organization),
       registered_count: String(registered),
       seats_remaining: remaining === null ? "" : String(remaining),
       team_status: label,
@@ -111,7 +126,12 @@ function enrich(rows: Registration[]): { registrations: Registration[]; teams: T
   }
 
   teams.sort((a, b) => a.team_id_display.localeCompare(b.team_id_display))
-  registrations.sort((a, b) => a.name.localeCompare(b.name))
+  registrations.sort((a, b) => {
+    const newest = Date.parse(b.created_at || "") || 0
+    const oldest = Date.parse(a.created_at || "") || 0
+    if (newest !== oldest) return newest - oldest
+    return a.name.localeCompare(b.name)
+  })
   return { registrations, teams }
 }
 
@@ -132,8 +152,14 @@ function toPayload(
     registrations,
     teams,
     charts: {
-      byLocation: countBy(submitted.map((row) => row.city)),
-      byCity: countBy(submitted.map((row) => row.metro)),
+      byLocation: countBy(
+        submitted.map((row) => row.city),
+        VENUE_OPTIONS.map((venue) => venue.label),
+      ),
+      byCity: countBy(
+        submitted.map((row) => row.metro),
+        [...new Set(VENUE_OPTIONS.map((venue) => venue.metro))],
+      ),
       byBuilder: countBy(submitted.map((row) => row.are_you)),
       byCollege: countBy(submitted.map((row) => row.organization)).slice(0, 8),
     },
@@ -167,6 +193,8 @@ export async function loadRoster(): Promise<RosterPayload> {
         ...base,
         team_id_display: formatTeamId(base.team_id),
         metro: deriveMetro(base.city),
+        registration_mail_status: "none",
+        registration_mail_sent_at: null,
         rsvp_status: "none",
         rsvp_sent_at: null,
         qr_status: "none",

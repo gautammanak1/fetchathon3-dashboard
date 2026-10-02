@@ -12,6 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
+import { useAuth } from "@/hooks/use-auth"
 import {
   LayoutDashboardIcon,
   QrCodeIcon,
@@ -19,7 +20,7 @@ import {
   UsersRoundIcon,
 } from "lucide-react"
 
-const navMain = [
+const publicNav = [
   {
     title: "Overview",
     url: "/dashboard",
@@ -30,6 +31,10 @@ const navMain = [
     url: "/dashboard/registrations",
     icon: <UsersRoundIcon />,
   },
+]
+
+const adminNav = [
+  ...publicNav,
   {
     title: "Teams",
     url: "/dashboard/teams",
@@ -43,6 +48,7 @@ const navMain = [
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { isAdmin } = useAuth()
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -60,7 +66,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        <NavMain items={navMain} />
+        <NavMain items={isAdmin ? adminNav : publicNav} />
       </SidebarContent>
     </Sidebar>
   )

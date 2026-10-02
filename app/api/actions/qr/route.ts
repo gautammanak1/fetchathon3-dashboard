@@ -4,13 +4,14 @@ import { upsertActions } from "@/lib/actions-store"
 import { getAdminSession } from "@/lib/auth"
 import { requireAdmin } from "@/lib/require-admin"
 import { findRegistration, loadRoster } from "@/lib/roster"
+import { teamPassUrl } from "@/lib/pass-url"
 import { resultNote, sendTeamQrEmails } from "@/lib/send-bulk"
+import { teamMailGroups } from "@/lib/team-mail"
 import { isSmtpConfigured } from "@/lib/smtp"
 import {
   ensureTeamQr,
   getTeamQr,
   markTeamQrSent,
-  teamFromRow,
   teamKey,
   teamQrImage,
 } from "@/lib/team-qr-store"
@@ -67,6 +68,7 @@ export async function GET(request: Request) {
     token: record.token,
     teamId: record.team_id_display,
     venue: record.venue,
+    passUrl: teamPassUrl(record.token),
     dataUrl: image.dataUrl,
   })
 }
@@ -101,36 +103,27 @@ export async function POST(request: Request) {
 
   if (mode === "generate") {
     const now = new Date().toISOString()
-    const seen = new Set<string>()
+    const groups = teamMailGroups(selected, roster.registrations)
     let teams = 0
-    for (const row of selected) {
-      const key = teamKey(row)
-      if (seen.has(key)) continue
-      seen.add(key)
-      await ensureTeamQr({
-        team_key: key,
-        team_id_display: row.team_id_display || key,
-        venue: row.city,
+    for (const group of groups) {
+      const record = await ensureTeamQr({
+        team_key: group.key,
+        team_id_display: group.primary.team_id_display || group.key,
+        venue: group.primary.city,
       })
       teams += 1
-    }
-    const records = await Promise.all(
-      selected.map(async (row) => {
-        const record = await getTeamQr(teamKey(row))
-        return { row, record }
-      }),
-    )
-    for (const { row, record } of records) {
-      if (!record) continue
-      await upsertActions([row.id], {
-        qr_status: "generated",
-        qr_token: record.token,
-        qr_generated_at: record.generated_at || now,
-      })
+      await upsertActions(
+        group.members.map((member) => member.id),
+        {
+          qr_status: "generated",
+          qr_token: record.token,
+          qr_generated_at: record.generated_at || now,
+        },
+      )
     }
     return NextResponse.json({
       ok: true,
-      count: selected.length,
+      count: groups.reduce((total, group) => total + group.members.length, 0),
       teams,
       note: `Generated ${teams} team QR ${teams === 1 ? "code" : "codes"} for venue check-in`,
     })
@@ -143,14 +136,13 @@ export async function POST(request: Request) {
     )
   }
 
+  const groups = teamMailGroups(selected, roster.registrations)
   const records = new Map(
     await Promise.all(
-      [...new Set(selected.map((row) => teamKey(row)))].map(async (key) => {
-        return [key, await getTeamQr(key)] as const
-      }),
+      groups.map(async (group) => [group.key, await getTeamQr(group.key)] as const),
     ),
   )
-  const missingQr = selected.filter((row) => !records.get(teamKey(row)))
+  const missingQr = groups.filter((group) => !records.get(group.key))
   if (missingQr.length > 0) {
     return NextResponse.json(
       { error: "Generate team QR codes before sending them" },
@@ -159,12 +151,8 @@ export async function POST(request: Request) {
   }
 
   const result = await sendTeamQrEmails(
-    selected,
-    (row) => records.get(teamKey(row)) ?? null,
-    (row) => {
-      const team = teamFromRow(row, roster.teams)
-      return (team?.members || [row]).map((member) => member.name).filter(Boolean)
-    },
+    groups,
+    (group) => records.get(group.key) ?? null,
   )
 
   if (result.sentIds.length) {
@@ -173,12 +161,9 @@ export async function POST(request: Request) {
       qr_status: "sent",
       qr_sent_at: sentAt,
     })
-    const keys = [
-      ...new Set(result.sentIds.map((id) => {
-        const row = selected.find((item) => item.id === id)
-        return row ? teamKey(row) : ""
-      }).filter(Boolean)),
-    ]
+    const keys = groups
+      .filter((group) => group.members.some((member) => result.sentIds.includes(member.id)))
+      .map((group) => group.key)
     await markTeamQrSent(keys)
     if (isNotionConfigured()) {
       try {

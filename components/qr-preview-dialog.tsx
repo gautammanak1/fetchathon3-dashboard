@@ -15,12 +15,14 @@ export function QrPreviewDialog({
   name,
   dataUrl,
   token,
+  passUrl,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   name: string
   dataUrl: string | null
   token: string | null
+  passUrl: string | null
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -47,6 +49,13 @@ export function QrPreviewDialog({
           )}
           {token ? (
             <p className="font-mono text-xs text-muted-foreground">{token}</p>
+          ) : null}
+          {passUrl ? (
+            <Button variant="outline" asChild>
+              <a href={passUrl} target="_blank" rel="noreferrer">
+                Open venue pass
+              </a>
+            </Button>
           ) : null}
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Close

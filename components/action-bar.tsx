@@ -21,6 +21,7 @@ export function ActionBar({
   filtered,
   busy,
   canManage,
+  onRegistration,
   onRsvp,
   onRsvpAll,
   onGenerateQr,
@@ -30,6 +31,7 @@ export function ActionBar({
   filtered: Registration[]
   busy: boolean
   canManage: boolean
+  onRegistration: () => void
   onRsvp: () => void
   onRsvpAll: () => void
   onGenerateQr: () => void
@@ -45,11 +47,7 @@ export function ActionBar({
     count > 0 && selected.every((row) => row.qr_status !== "none")
 
   if (!canManage) {
-    return (
-      <div className="px-4 text-sm text-muted-foreground lg:px-6">
-        View only. Admin login is required to send RSVP or team QR emails.
-      </div>
-    )
+    return null
   }
 
   return (
@@ -59,11 +57,35 @@ export function ActionBar({
           ? "Open a person to send one email, or select a few people. Do not blast the whole list."
           : count === 1
             ? `One email: ${selected[0]?.email}`
-            : `${count} selected · ${teamCount} team ${teamCount === 1 ? "QR" : "QRs"}`}
+            : `${count} selected · ${teamCount} team ${teamCount === 1 ? "email" : "emails"}`}
       </p>
       <AlertDialog>
         <AlertDialogTrigger asChild>
           <Button variant="default" disabled={!rsvpReady || busy}>
+            <MailIcon />
+            Send registration
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Send registration confirmation?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {count === 1
+                ? `This emails only ${selected[0]?.email || "this person"} the registration confirmation and Discord invite.`
+                : `This emails ${count} selected people the registration confirmation and Discord invite.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={onRegistration}>
+              Send registration
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button variant="outline" disabled={!rsvpReady || busy}>
             <MailIcon />
             Send RSVP
           </Button>
@@ -73,8 +95,8 @@ export function ActionBar({
             <AlertDialogTitle>Send seat confirmation?</AlertDialogTitle>
             <AlertDialogDescription>
               {count === 1
-                ? `This emails only ${selected[0]?.email || "this person"}. Nobody else is included.`
-                : `This emails ${count} selected people that their Fetch-A-Thon seat is confirmed.`}
+                ? `This sends one seat confirmation to ${selected[0]?.team_id_display || "this team"}. Teammates are CC'd on the same email.`
+                : `This sends one seat-confirmation email per team for the ${count} selected people. Teammates are CC'd. Nobody gets a second copy.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -94,7 +116,7 @@ export function ActionBar({
           <AlertDialogHeader>
             <AlertDialogTitle>Bulk RSVP all filtered?</AlertDialogTitle>
             <AlertDialogDescription>
-              This emails all {filteredCount} people in the current filter.
+              This sends one email per team in the current filter ({filteredCount} people). Teammates are CC'd. No extra individual copies.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -124,8 +146,8 @@ export function ActionBar({
           <AlertDialogHeader>
             <AlertDialogTitle>Send venue QR emails?</AlertDialogTitle>
             <AlertDialogDescription>
-              Each team gets one QR. Selected people on the same team receive
-              the same venue pass.
+              Each team gets one QR email. Teammates are CC'd. Scanning the QR
+              opens the team pass page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

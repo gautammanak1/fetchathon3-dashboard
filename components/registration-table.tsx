@@ -19,10 +19,22 @@ function StatusBadge({ value }: { value: string }) {
   return <Badge variant="outline">{value || "—"}</Badge>
 }
 
+function shortDate(value: string) {
+  const time = Date.parse(value)
+  if (!Number.isFinite(time)) return "—"
+  return new Date(time).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
 export function RegistrationTable({
   rows,
   selectedIds,
   selectable = true,
+  showActions = true,
   onToggle,
   onToggleAll,
   onOpen,
@@ -30,6 +42,7 @@ export function RegistrationTable({
   rows: Registration[]
   selectedIds: string[]
   selectable?: boolean
+  showActions?: boolean
   onToggle: (id: string, next: boolean) => void
   onToggleAll: (next: boolean) => void
   onOpen: (row: Registration) => void
@@ -61,6 +74,7 @@ export function RegistrationTable({
                   />
                 </TableHead>
               ) : null}
+              <TableHead>Registered</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Team</TableHead>
@@ -69,14 +83,21 @@ export function RegistrationTable({
               <TableHead>Builder</TableHead>
               <TableHead>College / org</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>RSVP</TableHead>
-              <TableHead>QR</TableHead>
+              {showActions ? (
+                <>
+                  <TableHead>RSVP</TableHead>
+                  <TableHead>QR</TableHead>
+                </>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
             {visible.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={selectable ? 11 : 10} className="h-24 text-center">
+                <TableCell
+                  colSpan={(selectable ? 10 : 9) + (showActions ? 2 : 0)}
+                  className="h-24 text-center"
+                >
                   No registrations match these filters.
                 </TableCell>
               </TableRow>
@@ -92,6 +113,9 @@ export function RegistrationTable({
                       />
                     </TableCell>
                   ) : null}
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                    {shortDate(row.created_at)}
+                  </TableCell>
                   <TableCell>
                     <button
                       type="button"
@@ -113,12 +137,16 @@ export function RegistrationTable({
                   <TableCell>
                     <StatusBadge value={row.status} />
                   </TableCell>
-                  <TableCell>
-                    <StatusBadge value={row.rsvp_status} />
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge value={row.qr_status} />
-                  </TableCell>
+                  {showActions ? (
+                    <>
+                      <TableCell>
+                        <StatusBadge value={row.rsvp_status} />
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge value={row.qr_status} />
+                      </TableCell>
+                    </>
+                  ) : null}
                 </TableRow>
               ))
             )}

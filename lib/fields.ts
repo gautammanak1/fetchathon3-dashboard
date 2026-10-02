@@ -35,7 +35,6 @@ export const FIELD_COLUMNS = Object.entries(DEFAULT_FIELDS) as [
 export const TEAM_CODE_PREFIX = "fetchathon3.0-"
 
 export const VENUE_OPTIONS = [
-  { value: "paytm_office_noida", label: "Paytm Office Noida", metro: "Noida" },
   {
     value: "amity_university_noida",
     label: "Amity University Noida",
@@ -44,6 +43,12 @@ export const VENUE_OPTIONS = [
   { value: "jaipur", label: "Jaipur", metro: "Jaipur" },
   { value: "bengaluru", label: "Bengaluru", metro: "Bengaluru" },
   { value: "iit_mandi", label: "IIT Mandi", metro: "Mandi" },
+  { value: "rit_roorkee", label: "RIT Roorkee", metro: "Roorkee" },
+  {
+    value: "masters_union_gurugram",
+    label: "Masters' Union Gurugram",
+    metro: "Gurugram",
+  },
   { value: "online", label: "Online", metro: "Online" },
 ] as const
 
@@ -90,22 +95,73 @@ export function formatTeamId(raw: string) {
   return tid ? `${TEAM_CODE_PREFIX}${tid}` : ""
 }
 
+export function formatVenue(location: string) {
+  const text = location.trim()
+  if (!text) return ""
+  const lower = text.toLowerCase()
+  const hit = VENUE_OPTIONS.find(
+    (option) =>
+      option.label.toLowerCase() === lower ||
+      option.value === lower ||
+      option.metro.toLowerCase() === lower,
+  )
+  if (hit) return hit.label
+  if (lower.includes("amity")) return "Amity University Noida"
+  if (lower.includes("jaipur")) return "Jaipur"
+  if (lower.includes("bengaluru") || lower.includes("bangalore")) return "Bengaluru"
+  if (lower.includes("mandi")) return "IIT Mandi"
+  if (lower.includes("roorkee") || lower.includes("rit")) return "RIT Roorkee"
+  if (
+    lower.includes("masters") ||
+    lower.includes("gurugram") ||
+    lower.includes("gurgaon")
+  ) {
+    return "Masters' Union Gurugram"
+  }
+  if (lower.includes("online")) return "Online"
+  return text
+}
+
 export function deriveMetro(location: string) {
   const text = location.trim().toLowerCase()
   if (!text) return "Unknown"
-  const hit = VENUE_OPTIONS.find(
-    (option) =>
-      option.label.toLowerCase() === text ||
-      option.value === text ||
-      option.metro.toLowerCase() === text,
-  )
+  const label = formatVenue(location)
+  const hit = VENUE_OPTIONS.find((option) => option.label === label)
   if (hit) return hit.metro
   if (text.includes("noida")) return "Noida"
   if (text.includes("jaipur")) return "Jaipur"
   if (text.includes("bengaluru") || text.includes("bangalore")) return "Bengaluru"
   if (text.includes("mandi")) return "Mandi"
+  if (text.includes("roorkee") || text.includes("rit")) return "Roorkee"
+  if (text.includes("gurugram") || text.includes("gurgaon") || text.includes("masters")) {
+    return "Gurugram"
+  }
   if (text.includes("online")) return "Online"
   return location
+}
+
+export function normalizeOrganization(raw: string) {
+  const text = raw.replace(/\s+/g, " ").trim()
+  if (!text) return "Unknown"
+  const key = text.toLowerCase().replace(/[^a-z0-9]+/g, "")
+  if (
+    key === "rit" ||
+    key.includes("ritroorkee") ||
+    key.includes("roorkeeinstituteoftechnology") ||
+    (key.includes("roorkee") && key.includes("institute"))
+  ) {
+    return "RIT Roorkee"
+  }
+  if (key.includes("galgotia")) return "Galgotias College"
+  if (key.includes("amity")) return "Amity University"
+  if (key.includes("bmlmunjal")) return "BML Munjal University"
+  if (key.includes("mastersunion") || key.includes("mastersuniongurugram")) {
+    return "Masters' Union"
+  }
+  if (key.includes("iitmandi") || (key.includes("iit") && key.includes("mandi"))) {
+    return "IIT Mandi"
+  }
+  return text
 }
 
 export function isHiddenVenue(location: string, metro = "") {

@@ -37,6 +37,8 @@ export async function upsertActions(
 ) {
   const store = await readStore()
   const blank: ActionRecord = {
+    registration_mail_status: "none",
+    registration_mail_sent_at: null,
     rsvp_status: "none",
     rsvp_sent_at: null,
     qr_status: "none",

@@ -136,6 +136,8 @@ export function registrationFromNotionPage(
   Registration,
   | "metro"
   | "team_id_display"
+  | "registration_mail_status"
+  | "registration_mail_sent_at"
   | "rsvp_status"
   | "rsvp_sent_at"
   | "qr_status"
@@ -175,6 +177,7 @@ export function registrationFromNotionPage(
     seats_remaining: col("seats_remaining"),
     team_status: col("team_status"),
     status: col("status"),
+    created_at: String(page.created_time || page.last_edited_time || ""),
     property_types: schema,
   }
 }

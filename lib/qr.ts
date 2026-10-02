@@ -1,6 +1,8 @@
 import { randomBytes } from "node:crypto"
 import QRCode from "qrcode"
 
+import { teamPassUrl } from "@/lib/pass-url"
+
 export function makeQrToken() {
   return `ft3-${randomBytes(6).toString("hex")}`
 }
@@ -10,13 +12,7 @@ export function teamQrPayload(input: {
   venue: string
   token: string
 }) {
-  return JSON.stringify({
-    event: "fetchathon3",
-    type: "team_entry",
-    team_id: input.teamId,
-    venue: input.venue,
-    token: input.token,
-  })
+  return teamPassUrl(input.token)
 }
 
 export function qrPayload(input: {

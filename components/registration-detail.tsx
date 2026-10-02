@@ -49,6 +49,7 @@ export function RegistrationDetail({
   row,
   onClose,
   onPreviewQr,
+  onRegistration,
   onRsvp,
   onGenerateQr,
   onSendQr,
@@ -58,15 +59,14 @@ export function RegistrationDetail({
   row: Registration | null
   onClose: () => void
   onPreviewQr: (id: string) => void
+  onRegistration: (id: string) => void
   onRsvp: (id: string) => void
   onGenerateQr: (id: string) => void
   onSendQr: (id: string) => void
   canManage: boolean
   busy: boolean
 }) {
-  const canPreviewQr = Boolean(
-    row && (canManage || row.qr_status !== "none"),
-  )
+  const canPreviewQr = Boolean(row && canManage && row.qr_status !== "none")
   return (
     <Sheet open={Boolean(row)} onOpenChange={(open) => !open && onClose()}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -81,8 +81,13 @@ export function RegistrationDetail({
             <div className="grid gap-4 px-4 pb-6">
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline">{row.status || "Unknown"}</Badge>
-                <Badge variant="outline">RSVP {row.rsvp_status}</Badge>
-                <Badge variant="outline">QR {row.qr_status}</Badge>
+                {canManage ? (
+                  <>
+                    <Badge variant="outline">Reg mail {row.registration_mail_status}</Badge>
+                    <Badge variant="outline">RSVP {row.rsvp_status}</Badge>
+                    <Badge variant="outline">QR {row.qr_status}</Badge>
+                  </>
+                ) : null}
               </div>
               <dl className="grid gap-3 text-sm">
                 {DETAIL_FIELDS.map(([key, label]) => {
@@ -106,20 +111,44 @@ export function RegistrationDetail({
                 <div className="grid gap-2">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button disabled={busy}>Send RSVP to this person</Button>
+                      <Button disabled={busy}>
+                        Send registration to this person
+                      </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Send one seat confirmation?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                          Send one registration email?
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
-                          This emails only {row.email || "this person"}. Nobody
-                          else is included.
+                          This emails only {row.email || "this person"} the
+                          registration confirmation and Discord invite.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => onRegistration(row.id)}>
+                          Send one email
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" disabled={busy}>Send RSVP to this team</Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Send team seat confirmation?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This sends one email to {row.team_id_display || "this team"}.
+                          Teammates are CC'd. Nobody gets a second copy.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={() => onRsvp(row.id)}>
-                          Send one email
+                          Send team email
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -137,21 +166,21 @@ export function RegistrationDetail({
                         variant="outline"
                         disabled={busy || row.qr_status === "none"}
                       >
-                        Send team QR to this person
+                        Send team QR
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Send one venue QR?</AlertDialogTitle>
+                        <AlertDialogTitle>Send team venue QR?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This emails only {row.email || "this person"} the
-                          shared team QR.
+                          This emails one QR to {row.team_id_display || "this team"}.
+                          Teammates are CC'd. Scanning it opens the team pass.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={() => onSendQr(row.id)}>
-                          Send one email
+                          Send team email
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

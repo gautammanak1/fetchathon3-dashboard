@@ -4,6 +4,7 @@ import * as React from "react"
 
 import { AppSidebar } from "@/components/app-sidebar"
 import { AuthControls } from "@/components/auth-controls"
+import { ModeToggle } from "@/components/mode-toggle"
 import { SiteHeader } from "@/components/site-header"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
@@ -46,6 +47,7 @@ export function DashboardShell({
       <SidebarInset>
         <SiteHeader title={title}>
           {actions}
+          <ModeToggle />
           <AuthControls />
         </SiteHeader>
         <div className="flex flex-1 flex-col">

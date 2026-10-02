@@ -13,12 +13,14 @@ import type { Filters, Registration } from "@/lib/types"
 
 export function RosterWorkspace({
   rows,
+  onRegistration,
   onRsvp,
   onGenerateQr,
   onSendQr,
   busy,
 }: {
   rows: Registration[]
+  onRegistration: (ids: string[]) => Promise<boolean>
   onRsvp: (ids: string[]) => Promise<boolean>
   onGenerateQr: (ids: string[]) => Promise<boolean>
   onSendQr: (ids: string[]) => Promise<boolean>
@@ -32,6 +34,7 @@ export function RosterWorkspace({
     name: string
     dataUrl: string | null
     token: string | null
+    passUrl: string | null
   } | null>(null)
 
   const filtered = React.useMemo(
@@ -47,12 +50,13 @@ export function RosterWorkspace({
   }, [rows, openId])
 
   const previewQr = async (id: string) => {
-    setQr({ name: "Loading", dataUrl: null, token: null })
+    setQr({ name: "Loading", dataUrl: null, token: null, passUrl: null })
     const response = await fetch(`/api/actions/qr?id=${encodeURIComponent(id)}`)
     const payload = (await response.json()) as {
       name?: string
       dataUrl?: string
       token?: string
+      passUrl?: string
       error?: string
     }
     if (!response.ok) {
@@ -63,6 +67,7 @@ export function RosterWorkspace({
       name: payload.name || "QR",
       dataUrl: payload.dataUrl || null,
       token: payload.token || null,
+      passUrl: payload.passUrl || (payload.token ? `/pass/${payload.token}` : null),
     })
   }
 
@@ -72,12 +77,14 @@ export function RosterWorkspace({
         rows={rows}
         filters={filters}
         onChange={setFilters}
+        showActions={isAdmin}
       />
       <ActionBar
         selected={selected}
         filtered={filtered}
         busy={busy}
         canManage={isAdmin}
+        onRegistration={() => void onRegistration(selected.map((row) => row.id))}
         onRsvp={() => void onRsvp(selected.map((row) => row.id))}
         onRsvpAll={() => void onRsvp(filtered.map((row) => row.id))}
         onGenerateQr={() => void onGenerateQr(selected.map((row) => row.id))}
@@ -86,6 +93,7 @@ export function RosterWorkspace({
       <RegistrationTable
         rows={filtered}
         selectable={isAdmin}
+        showActions={isAdmin}
         selectedIds={selectedIds}
         onToggle={(id, next) =>
           setSelectedIds((current) =>
@@ -103,6 +111,7 @@ export function RosterWorkspace({
         busy={busy}
         onClose={() => setOpenRow(null)}
         onPreviewQr={(id) => void previewQr(id)}
+        onRegistration={(id) => void onRegistration([id])}
         onRsvp={(id) => void onRsvp([id])}
         onGenerateQr={(id) => void onGenerateQr([id])}
         onSendQr={(id) => void onSendQr([id])}
@@ -113,6 +122,7 @@ export function RosterWorkspace({
         name={qr?.name || ""}
         dataUrl={qr?.dataUrl || null}
         token={qr?.token || null}
+        passUrl={qr?.passUrl || null}
       />
     </div>
   )

@@ -61,6 +61,7 @@ export async function sendSmtpMail(
   input: {
     to: string
     toName?: string
+    cc?: string[]
     subject: string
     text: string
     html: string
@@ -79,10 +80,13 @@ export async function sendSmtpMail(
   }
   const owned = !transporter
   const mailer = transporter || createSmtpTransport()
+  const cc = [...new Set((input.cc || []).map((email) => email.trim().toLowerCase()))]
+    .filter((email) => email && email !== input.to.trim().toLowerCase() && EMAIL_RE.test(email))
   try {
     await mailer.sendMail({
       from: `${settings.fromName} <${settings.fromAddr}>`,
       to: input.toName ? `${input.toName} <${input.to}>` : input.to,
+      cc: cc.length ? cc : undefined,
       replyTo: settings.fromAddr,
       subject: input.subject,
       text: input.text,

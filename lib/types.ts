@@ -25,6 +25,9 @@ export type Registration = {
   seats_remaining: string
   team_status: string
   status: string
+  created_at: string
+  registration_mail_status: "none" | "sent"
+  registration_mail_sent_at: string | null
   rsvp_status: RsvpStatus
   rsvp_sent_at: string | null
   qr_status: QrStatus
@@ -35,6 +38,8 @@ export type Registration = {
 }
 
 export type ActionRecord = {
+  registration_mail_status: "none" | "sent"
+  registration_mail_sent_at: string | null
   rsvp_status: RsvpStatus
   rsvp_sent_at: string | null
   qr_status: QrStatus

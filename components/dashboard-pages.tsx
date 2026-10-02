@@ -43,10 +43,10 @@ function TestInboxButton({
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Send sample RSVP + QR?</AlertDialogTitle>
+            <AlertDialogTitle>Send sample registration email?</AlertDialogTitle>
             <AlertDialogDescription>
-              This sends only to gautammanak1@gmail.com. The roster is not
-              emailed.
+              This sends only to gautammanak1@gmail.com, including the Discord
+              invite. The roster is not emailed.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -76,6 +76,7 @@ function ErrorState({ message }: { message: string }) {
 
 export function OverviewPage() {
   const { data, loading, error } = useRoster()
+  const { isAdmin } = useAuth()
 
   return (
     <DashboardShell title="Overview">
@@ -83,7 +84,7 @@ export function OverviewPage() {
       {error ? <ErrorState message={error} /> : null}
       {data ? (
         <>
-          <OverviewCards stats={data.stats} />
+          <OverviewCards stats={data.stats} showActions={isAdmin} />
           <RegistrationCharts
             byLocation={data.charts.byLocation}
             byCity={data.charts.byCity}
@@ -122,6 +123,9 @@ export function RegistrationsPage() {
           <RosterWorkspace
             rows={data.registrations}
             busy={busy}
+            onRegistration={(ids) =>
+              act("/api/actions/registration", { ids }, "Registration emails sent")
+            }
             onRsvp={(ids) =>
               act("/api/actions/rsvp", { ids }, "Seat confirmation emails sent")
             }
@@ -165,6 +169,7 @@ export function TeamsPage() {
             rows={data.registrations}
             filters={filters}
             onChange={setFilters}
+            showActions
           />
           <TeamBoard teams={teams} />
         </>
@@ -197,7 +202,7 @@ export function ActionsPage() {
       {data ? (
         <>
           <div className="px-4 text-sm text-muted-foreground lg:px-6">
-            Shared links are view only. Admin can send one person at a time.
+            RSVP and QR emails go once per team, with teammates on CC.
             Use the test button to email gautammanak1@gmail.com only.
           </div>
           <TestInboxButton
@@ -205,14 +210,17 @@ export function ActionsPage() {
             onSend={() =>
               void act(
                 "/api/actions/test-mail",
-                { kinds: ["rsvp", "qr"] },
-                "Test emails sent to gautammanak1@gmail.com",
+                { kinds: ["registration"] },
+                "Test registration email sent to gautammanak1@gmail.com",
               )
             }
           />
           <RosterWorkspace
             rows={data.registrations}
             busy={busy}
+            onRegistration={(ids) =>
+              act("/api/actions/registration", { ids }, "Registration emails sent")
+            }
             onRsvp={(ids) =>
               act("/api/actions/rsvp", { ids }, "Seat confirmation emails sent")
             }

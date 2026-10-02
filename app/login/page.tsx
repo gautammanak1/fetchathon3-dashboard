@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 
 import { FetchathonLogo } from "@/components/fetchathon-logo"
+import { ModeToggle } from "@/components/mode-toggle"
 import { useAuth } from "@/hooks/use-auth"
 import { Button } from "@/components/ui/button"
 import {
@@ -51,7 +52,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center px-4">
+    <div className="relative flex min-h-svh flex-col items-center justify-center px-4">
+      <div className="absolute right-4 top-4">
+        <ModeToggle />
+      </div>
       <Card className="w-full max-w-sm">
         <CardHeader className="gap-4">
           <FetchathonLogo />

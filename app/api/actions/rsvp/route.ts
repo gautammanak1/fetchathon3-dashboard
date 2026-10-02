@@ -4,6 +4,7 @@ import { upsertActions } from "@/lib/actions-store"
 import { requireAdmin } from "@/lib/require-admin"
 import { findRegistration, loadRoster } from "@/lib/roster"
 import { resultNote, sendRsvpEmails } from "@/lib/send-bulk"
+import { teamMailGroups } from "@/lib/team-mail"
 import { isSmtpConfigured } from "@/lib/smtp"
 import {
   fetchNotionSchema,
@@ -35,7 +36,7 @@ export async function POST(request: Request) {
     .map((id) => findRegistration(roster, id))
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
 
-  const result = await sendRsvpEmails(rows)
+  const result = await sendRsvpEmails(teamMailGroups(rows, roster.registrations))
 
   const sentAt = new Date().toISOString()
   if (result.sentIds.length) {

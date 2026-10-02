@@ -31,6 +31,28 @@ export function bannerUrl() {
   return URL_RE.test(configured) ? configured : DEFAULT_BANNER
 }
 
+export function discordInviteUrl() {
+  const configured = (process.env.FETCHATHON_DISCORD_URL || "https://discord.gg/fetchai").trim()
+  return URL_RE.test(configured) ? configured : "https://discord.gg/fetchai"
+}
+
+function ctaButtonsHtml() {
+  const eventUrl = escapeHtml(eventPageUrl())
+  const discordUrl = escapeHtml(discordInviteUrl())
+  return `
+          <tr>
+            <td style="padding:28px 36px 0;font-family:${FONT};">
+              <p style="margin:0 0 12px;font-size:14px;line-height:1.5;color:#4a4663;">Next steps</p>
+              <a href="${eventUrl}" style="display:inline-block;background:#241b5e;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;line-height:1;padding:14px 18px;">Open event page</a>
+              <a href="${discordUrl}" style="display:inline-block;margin-left:10px;background:#5865f2;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;line-height:1;padding:14px 18px;">Join Discord</a>
+              <p style="margin:12px 0 0;font-size:13px;line-height:1.6;color:#4a4663;">
+                Join the Fetch.ai Discord so you get event updates:
+                <a href="${discordUrl}" style="color:#3d2db8;text-decoration:underline;">${discordUrl}</a>
+              </p>
+            </td>
+          </tr>`
+}
+
 function participationMode(row: Registration) {
   const participation = clean(row.participation).toLowerCase()
   const role = clean(row.role).toLowerCase()
@@ -152,6 +174,33 @@ function wrapEmail(title: string, inner: string) {
 </html>`
 }
 
+function membersTableHtml(members: Registration[], row: Registration) {
+  const rows: Array<[string, string]> = [
+    ["Team ID", clean(row.team_id_display)],
+    ["Venue", clean(row.city)],
+    ...members.map((member) => {
+      const label = clean(member.role) || "Member"
+      const value = [clean(member.name), clean(member.email)].filter(Boolean).join(" · ")
+      return [label, value] as [string, string]
+    }),
+  ]
+  const visible = rows.filter(([, value]) => value)
+  return visible
+    .map(([label, value], index) => {
+      const border = index < visible.length - 1 ? "border-bottom:1px solid #eeeaf6;" : ""
+      return (
+        `<tr>` +
+        `<td style="padding:14px 0;${border}width:148px;vertical-align:top;` +
+        `font-family:${FONT};font-size:13px;line-height:1.4;color:#8a849e;">${escapeHtml(label)}</td>` +
+        `<td style="padding:14px 0 14px 12px;${border}vertical-align:top;` +
+        `font-family:${FONT};font-size:15px;line-height:1.45;color:#1a1740;">` +
+        `${detailValueHtml(label, value)}</td>` +
+        `</tr>`
+      )
+    })
+    .join("")
+}
+
 function detailsTableHtml(row: Registration) {
   const rows = detailRows(row)
   const rowsHtml = rows.map(([label, value], index) => {
@@ -169,18 +218,49 @@ function detailsTableHtml(row: Registration) {
   return rowsHtml.join("")
 }
 
-export function rsvpSubject() {
-  return "Your Fetch-A-Thon 3.0 seat is confirmed"
+export function registrationSubject() {
+  return "Thank you for registering for Fetch-A-Thon 3.0"
 }
 
-export function rsvpText(row: Registration) {
+function registrationBlurb(row: Registration) {
+  const mode = participationMode(row)
+  const role = clean(row.role).toLowerCase()
+  const teamId = row.team_id_display
+  const size = Number(row.team_size)
+  if (mode === "solo") {
+    return {
+      label: "Solo",
+      blurb: "You registered as a solo participant. We will review your profile on its own.",
+    }
+  }
+  if (role === "lead") {
+    const sizeBit = Number.isFinite(size) && size > 0
+      ? ` Your team size is ${size}, including you.`
+      : ""
+    const share = teamId
+      ? ` Share Team ID ${teamId} with your teammates so they can register and complete the team.`
+      : ""
+    return {
+      label: "Team",
+      blurb: `You registered as the team lead.${sizeBit}${share}`,
+    }
+  }
+  const joined = teamId ? ` You joined Team ID ${teamId}.` : ""
+  return {
+    label: "Team",
+    blurb: `You registered as a team member.${joined}`,
+  }
+}
+
+export function registrationText(row: Registration) {
   const name = clean(row.name) || "there"
-  const { label, blurb } = participationBlurb(row)
+  const { label, blurb } = registrationBlurb(row)
   const lines = [
     `Hi ${name}!`,
     "",
-    "Your seat for Fetch-A-Thon 3.0 is confirmed.",
-    "Please keep this email. We will send your team venue QR later so you can check in at the venue.",
+    "Thank you for registering for Fetch-A-Thon 3.0.",
+    "We have saved your response and will review your profile.",
+    "We will let you know if you are shortlisted.",
     "",
     `Participation: ${label}`,
     blurb,
@@ -193,27 +273,150 @@ export function rsvpText(row: Registration) {
   lines.push(
     "",
     `Event page: ${eventPageUrl()}`,
+    `Join Discord: ${discordInviteUrl()}`,
     "",
     "For any queries, email innovationlab@fetch.ai and the Innovation Lab team will get back to you.",
     "",
-    "Fetch-A-Thon / Fetch.ai Innovation Lab",
+    "Please note that filling this form does not guarantee a seat or a slot at the event. The organizers will send you a unique Entry Pass or communicate personally with you if you have been shortlisted.",
+    "",
+    "Fetch.ai Innovation Lab",
   )
   return lines.join("\n")
 }
 
-export function rsvpHtml(row: Registration) {
+export function registrationHtml(row: Registration) {
   const name = escapeHtml(clean(row.name) || "there")
-  const { label, blurb } = participationBlurb(row)
-  const eventUrl = escapeHtml(eventPageUrl())
+  const { label, blurb } = registrationBlurb(row)
   const inner = `
           <tr>
             <td style="padding:32px 36px 0;font-family:${FONT};color:#1a1740;">
               <p style="margin:0;font-size:26px;line-height:1.25;font-weight:700;">Hi ${name}!</p>
               <p style="margin:14px 0 0;font-size:16px;line-height:1.65;color:#3d3958;">
-                Your seat for Fetch-A-Thon 3.0 is confirmed.
+                Thank you for registering for Fetch-A-Thon 3.0. We have saved your response and will review your profile.
+              </p>
+              <p style="margin:8px 0 0;font-size:16px;line-height:1.65;color:#3d3958;">
+                We will let you know if you are shortlisted.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 36px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="4" style="width:4px;background:#5b45f5;font-size:0;line-height:0;">&nbsp;</td>
+                  <td style="padding:2px 0 2px 16px;font-family:${FONT};">
+                    <p style="margin:0;font-size:11px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">Registered as</p>
+                    <p style="margin:6px 0 0;font-size:22px;line-height:1.2;font-weight:700;color:#2a1f8f;">${escapeHtml(label)}</p>
+                    <p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#4a4663;">${escapeHtml(blurb)}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 36px 0;font-family:${FONT};">
+              <p style="margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid #ece8f5;font-size:12px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">Your details</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${detailsTableHtml(row)}
+              </table>
+            </td>
+          </tr>
+          ${ctaButtonsHtml()}
+          <tr>
+            <td style="padding:28px 36px 0;font-family:${FONT};font-size:14px;line-height:1.65;color:#4a4663;">
+              For any queries, email
+              <a href="mailto:innovationlab@fetch.ai" style="color:#3d2db8;text-decoration:underline;">innovationlab@fetch.ai</a>
+              and the Innovation Lab team will get back to you.
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 36px 32px;font-family:${FONT};">
+              <p style="margin:0;padding-top:18px;border-top:1px solid #ece8f5;font-size:12px;line-height:1.6;color:#8a849e;">
+                Filling this form does not guarantee a seat or a slot at the event. The organizers will send a unique Entry Pass, or write to you directly, if you are shortlisted.
+              </p>
+              <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#8a849e;">Fetch.ai Innovation Lab</p>
+            </td>
+          </tr>`
+  return wrapEmail(registrationSubject(), inner)
+}
+
+export function rsvpSubject() {
+  return "Your Fetch-A-Thon 3.0 seat is confirmed"
+}
+
+function teamGreeting(row: Registration, members: Registration[]) {
+  if (members.length > 1) {
+    const names = members.map((member) => clean(member.name)).filter(Boolean)
+    return names.length ? `Hi ${names.join(", ")}!` : "Hi team!"
+  }
+  return `Hi ${clean(row.name) || "there"}!`
+}
+
+function membersListText(members: Registration[]) {
+  return members.map((member) => {
+    const bits = [clean(member.name) || "Untitled", clean(member.role), clean(member.email)]
+      .filter(Boolean)
+    return `- ${bits.join(" · ")}`
+  })
+}
+
+export function rsvpText(row: Registration, members: Registration[] = [row]) {
+  const team = members.length > 1
+  const { label, blurb } = participationBlurb(row)
+  const lines = [
+    teamGreeting(row, members),
+    "",
+    team
+      ? "Your team seats for Fetch-A-Thon 3.0 are confirmed."
+      : "Your seat for Fetch-A-Thon 3.0 is confirmed.",
+    "Please keep this email. We will send your team venue QR later so you can check in at the venue.",
+    team
+      ? "This was sent once to the whole team. Teammates are on CC, so nobody gets a second copy."
+      : "",
+    "",
+    `Participation: ${label}`,
+    blurb,
+    "",
+    team ? "Team" : "Your registration details",
+  ]
+  if (team) {
+    lines.push(...membersListText(members))
+    lines.push("", `Team ID: ${clean(row.team_id_display)}`, `Venue: ${clean(row.city)}`)
+  } else {
+    for (const [field, value] of detailRows(row)) {
+      lines.push(`- ${field}: ${value}`)
+    }
+  }
+  lines.push(
+    "",
+    `Event page: ${eventPageUrl()}`,
+    `Join Discord: ${discordInviteUrl()}`,
+    "",
+    "For any queries, email innovationlab@fetch.ai and the Innovation Lab team will get back to you.",
+    "",
+    "Fetch-A-Thon / Fetch.ai Innovation Lab",
+  )
+  return lines.filter((line, index, all) => !(line === "" && all[index - 1] === "")).join("\n")
+}
+
+export function rsvpHtml(row: Registration, members: Registration[] = [row]) {
+  const team = members.length > 1
+  const name = escapeHtml(teamGreeting(row, members).replace(/^Hi |!$/g, "") || "there")
+  const { label, blurb } = participationBlurb(row)
+  const inner = `
+          <tr>
+            <td style="padding:32px 36px 0;font-family:${FONT};color:#1a1740;">
+              <p style="margin:0;font-size:26px;line-height:1.25;font-weight:700;">Hi ${name}!</p>
+              <p style="margin:14px 0 0;font-size:16px;line-height:1.65;color:#3d3958;">
+                ${team
+                  ? "Your team seats for Fetch-A-Thon 3.0 are confirmed."
+                  : "Your seat for Fetch-A-Thon 3.0 is confirmed."}
               </p>
               <p style="margin:8px 0 0;font-size:16px;line-height:1.65;color:#3d3958;">
                 Please keep this email. We will send your team venue QR later so you can check in at the venue.
+                ${team
+                  ? " This was sent once to the whole team. Teammates are on CC."
+                  : ""}
               </p>
             </td>
           </tr>
@@ -233,18 +436,13 @@ export function rsvpHtml(row: Registration) {
           </tr>
           <tr>
             <td style="padding:28px 36px 0;font-family:${FONT};">
-              <p style="margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid #ece8f5;font-size:12px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">Your details</p>
+              <p style="margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid #ece8f5;font-size:12px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">${team ? "Team" : "Your details"}</p>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                ${detailsTableHtml(row)}
+                ${team ? membersTableHtml(members, row) : detailsTableHtml(row)}
               </table>
             </td>
           </tr>
-          <tr>
-            <td style="padding:28px 36px 0;font-family:${FONT};">
-              <p style="margin:0 0 12px;font-size:14px;line-height:1.5;color:#4a4663;">Event page</p>
-              <a href="${eventUrl}" style="display:inline-block;background:#241b5e;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;line-height:1;padding:14px 18px;">Open event page</a>
-            </td>
-          </tr>
+          ${ctaButtonsHtml()}
           <tr>
             <td style="padding:28px 36px 0;font-family:${FONT};font-size:14px;line-height:1.65;color:#4a4663;">
               For any queries, email
@@ -280,7 +478,8 @@ export function qrText(input: {
     `Hi ${name}!`,
     "",
     "Your team venue QR for Fetch-A-Thon 3.0 is ready.",
-    "One QR is used for the whole team. Show this at the venue check-in desk.",
+    "One QR is used for the whole team. Scanning it opens your team pass with names and venue.",
+    "Show this at the venue check-in desk.",
     "",
     `Team ID: ${input.teamIdDisplay || "Solo"}`,
     `Venue: ${input.venue || "See event page"}`,
@@ -289,6 +488,7 @@ export function qrText(input: {
       : "",
     "",
     `Event page: ${eventPageUrl()}`,
+    `Join Discord: ${discordInviteUrl()}`,
     "",
     "For any queries, email innovationlab@fetch.ai.",
     "",
@@ -308,13 +508,12 @@ export function qrHtml(input: {
   const teamId = escapeHtml(input.teamIdDisplay || "Solo")
   const venue = escapeHtml(input.venue || "See event page")
   const members = escapeHtml(input.memberNames.join(", ") || clean(input.row.name))
-  const eventUrl = escapeHtml(eventPageUrl())
   const inner = `
           <tr>
             <td style="padding:32px 36px 0;font-family:${FONT};color:#1a1740;">
               <p style="margin:0;font-size:26px;line-height:1.25;font-weight:700;">Hi ${name}!</p>
               <p style="margin:14px 0 0;font-size:16px;line-height:1.65;color:#3d3958;">
-                Your team venue QR for Fetch-A-Thon 3.0 is ready. One QR is used for the whole team.
+                Your team venue QR for Fetch-A-Thon 3.0 is ready. One QR is used for the whole team. Scanning it opens your team pass.
               </p>
               <p style="margin:8px 0 0;font-size:16px;line-height:1.65;color:#3d3958;">
                 Show this QR at the venue check-in desk.
@@ -341,12 +540,7 @@ export function qrHtml(input: {
               <img src="cid:teamqr" width="240" alt="Team venue QR" style="display:block;width:240px;height:240px;border:0;background:#ffffff;">
             </td>
           </tr>
-          <tr>
-            <td style="padding:28px 36px 0;font-family:${FONT};">
-              <p style="margin:0 0 12px;font-size:14px;line-height:1.5;color:#4a4663;">Event page</p>
-              <a href="${eventUrl}" style="display:inline-block;background:#241b5e;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;line-height:1;padding:14px 18px;">Open event page</a>
-            </td>
-          </tr>
+          ${ctaButtonsHtml()}
           <tr>
             <td style="padding:24px 36px 32px;font-family:${FONT};">
               <p style="margin:0;padding-top:18px;border-top:1px solid #ece8f5;font-size:12px;line-height:1.6;color:#8a849e;">

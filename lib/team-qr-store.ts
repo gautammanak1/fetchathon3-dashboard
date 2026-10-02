@@ -45,6 +45,13 @@ export async function getTeamQr(key: string) {
   return store[key] ?? null
 }
 
+export async function findTeamQrByToken(token: string) {
+  const store = await readStore()
+  return (
+    Object.values(store).find((record) => record.token === token) ?? null
+  )
+}
+
 export async function ensureTeamQr(input: {
   team_key: string
   team_id_display: string

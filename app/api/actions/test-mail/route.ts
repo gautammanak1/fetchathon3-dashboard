@@ -17,13 +17,14 @@ export async function POST(request: Request) {
   }
 
   const body = (await request.json().catch(() => ({}))) as {
-    kinds?: Array<"rsvp" | "qr">
+    kinds?: Array<"registration" | "rsvp" | "qr">
   }
-  const kinds = (body.kinds || ["rsvp", "qr"]).filter(
-    (kind): kind is "rsvp" | "qr" => kind === "rsvp" || kind === "qr",
+  const kinds = (body.kinds || ["registration"]).filter(
+    (kind): kind is "registration" | "rsvp" | "qr" =>
+      kind === "registration" || kind === "rsvp" || kind === "qr",
   )
   if (kinds.length === 0) {
-    return NextResponse.json({ error: "Pick rsvp or qr" }, { status: 400 })
+    return NextResponse.json({ error: "Pick registration, rsvp, or qr" }, { status: 400 })
   }
 
   const result = await sendTestInboxEmails(kinds)

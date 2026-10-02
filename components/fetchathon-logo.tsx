@@ -14,7 +14,7 @@ export function FetchathonLogo({
         alt="Fetch.ai"
         width={122}
         height={20}
-        className="h-5 w-auto"
+        className="h-5 w-auto brightness-0 dark:brightness-100"
       />
     </span>
   )

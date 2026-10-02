@@ -68,10 +68,12 @@ export function RegistrationFilters({
   rows,
   filters,
   onChange,
+  showActions = true,
 }: {
   rows: Registration[]
   filters: Filters
   onChange: (next: Filters) => void
+  showActions?: boolean
 }) {
   const count = activeFilterCount(filters)
   const [open, setOpen] = React.useState(false)
@@ -145,18 +147,22 @@ export function RegistrationFilters({
               selected={filters.status}
               onChange={(status) => onChange({ ...filters, status })}
             />
-            <FilterGroup
-              title="RSVP"
-              options={["none", "sent", "confirmed"]}
-              selected={filters.rsvp}
-              onChange={(rsvp) => onChange({ ...filters, rsvp })}
-            />
-            <FilterGroup
-              title="QR"
-              options={["none", "generated", "sent"]}
-              selected={filters.qr}
-              onChange={(qr) => onChange({ ...filters, qr })}
-            />
+            {showActions ? (
+              <>
+                <FilterGroup
+                  title="RSVP"
+                  options={["none", "sent", "confirmed"]}
+                  selected={filters.rsvp}
+                  onChange={(rsvp) => onChange({ ...filters, rsvp })}
+                />
+                <FilterGroup
+                  title="QR"
+                  options={["none", "generated", "sent"]}
+                  selected={filters.qr}
+                  onChange={(qr) => onChange({ ...filters, qr })}
+                />
+              </>
+            ) : null}
             <div className="flex gap-2">
               <Button
                 variant="outline"
