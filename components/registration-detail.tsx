@@ -59,10 +59,10 @@ export function RegistrationDetail({
   row: Registration | null
   onClose: () => void
   onPreviewQr: (id: string) => void
-  onRegistration: (id: string) => void
-  onRsvp: (id: string) => void
+  onRegistration: (id: string, force?: boolean) => void
+  onRsvp: (id: string, force?: boolean) => void
   onGenerateQr: (id: string) => void
-  onSendQr: (id: string) => void
+  onSendQr: (id: string, force?: boolean) => void
   canManage: boolean
   busy: boolean
 }) {
@@ -83,9 +83,18 @@ export function RegistrationDetail({
                 <Badge variant="outline">{row.status || "Unknown"}</Badge>
                 {canManage ? (
                   <>
-                    <Badge variant="outline">Reg mail {row.registration_mail_status}</Badge>
-                    <Badge variant="outline">RSVP {row.rsvp_status}</Badge>
-                    <Badge variant="outline">QR {row.qr_status}</Badge>
+                    <Badge variant="outline">
+                      Reg mail {row.registration_mail_status}
+                      {row.registration_mail_count > 1 ? ` ×${row.registration_mail_count}` : ""}
+                    </Badge>
+                    <Badge variant="outline">
+                      RSVP {row.rsvp_status}
+                      {row.rsvp_count > 1 ? ` ×${row.rsvp_count}` : ""}
+                    </Badge>
+                    <Badge variant="outline">
+                      QR {row.qr_status}
+                      {row.qr_count > 1 ? ` ×${row.qr_count}` : ""}
+                    </Badge>
                   </>
                 ) : null}
               </div>
@@ -109,57 +118,90 @@ export function RegistrationDetail({
               </dl>
               {canManage ? (
                 <div className="grid gap-2">
+                  {row.registration_mail_sent_at || row.rsvp_sent_at || row.qr_sent_at ? (
+                    <div className="rounded-md border px-3 py-2 text-xs text-muted-foreground">
+                      {row.registration_mail_sent_at
+                        ? `Registration last sent ${new Date(row.registration_mail_sent_at).toLocaleString()}`
+                        : "Registration not sent yet"}
+                      <br />
+                      {row.rsvp_sent_at
+                        ? `RSVP last sent ${new Date(row.rsvp_sent_at).toLocaleString()}`
+                        : "RSVP not sent yet"}
+                      <br />
+                      {row.qr_sent_at
+                        ? `QR last sent ${new Date(row.qr_sent_at).toLocaleString()}`
+                        : "QR not sent yet"}
+                    </div>
+                  ) : null}
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button
-                        disabled={busy || row.registration_mail_status === "sent"}
-                      >
+                      <Button disabled={busy}>
                         {row.registration_mail_status === "sent"
-                          ? "Registration mail already sent"
+                          ? "Send registration again"
                           : "Send registration to this person"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
                         <AlertDialogTitle>
-                          Send one registration email?
+                          {row.registration_mail_status === "sent"
+                            ? "Resend registration email?"
+                            : "Send one registration email?"}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                           This emails only {row.email || "this person"} the
                           registration confirmation and Discord invite.
+                          {row.registration_mail_status === "sent"
+                            ? " They already received this mail; this sends another copy."
+                            : ""}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => onRegistration(row.id)}>
-                          Send one email
+                        <AlertDialogAction
+                          onClick={() =>
+                            onRegistration(
+                              row.id,
+                              row.registration_mail_status === "sent",
+                            )
+                          }
+                        >
+                          {row.registration_mail_status === "sent"
+                            ? "Send again"
+                            : "Send one email"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        disabled={busy || row.rsvp_status !== "none"}
-                      >
+                      <Button variant="outline" disabled={busy}>
                         {row.rsvp_status !== "none"
-                          ? "RSVP already sent"
+                          ? "Send RSVP again"
                           : "Send RSVP to this team"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Send team seat confirmation?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                          {row.rsvp_status !== "none"
+                            ? "Resend team seat confirmation?"
+                            : "Send team seat confirmation?"}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
                           This sends one email to {row.team_id_display || "this team"}.
-                          Teammates are CC'd. Nobody gets a second copy.
+                          Teammates are CC'd.
+                          {row.rsvp_status !== "none"
+                            ? " This team already received RSVP; this sends another copy."
+                            : ""}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => onRsvp(row.id)}>
-                          Send team email
+                        <AlertDialogAction
+                          onClick={() => onRsvp(row.id, row.rsvp_status !== "none")}
+                        >
+                          {row.rsvp_status !== "none" ? "Send again" : "Send team email"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -173,26 +215,29 @@ export function RegistrationDetail({
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        disabled={busy || row.qr_status === "sent"}
-                      >
-                        Send team QR
+                      <Button variant="outline" disabled={busy}>
+                        {row.qr_status === "sent" ? "Send team QR again" : "Send team QR"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>Send team venue QR?</AlertDialogTitle>
+                        <AlertDialogTitle>
+                          {row.qr_status === "sent"
+                            ? "Resend team venue QR?"
+                            : "Send team venue QR?"}
+                        </AlertDialogTitle>
                         <AlertDialogDescription>
                           {row.qr_status === "sent"
-                            ? "This team already received the QR email."
+                            ? "This team already received the QR email. This sends another copy."
                             : `This generates the QR if needed and emails ${row.team_id_display || "this team"}. Teammates are CC'd.`}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => onSendQr(row.id)}>
-                          Send team email
+                        <AlertDialogAction
+                          onClick={() => onSendQr(row.id, row.qr_status === "sent")}
+                        >
+                          {row.qr_status === "sent" ? "Send again" : "Send team email"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -202,7 +247,6 @@ export function RegistrationDetail({
               {canPreviewQr ? (
                 <Button
                   variant="outline"
-                  disabled={row.rsvp_status === "none"}
                   onClick={() => onPreviewQr(row.id)}
                 >
                   Preview team QR

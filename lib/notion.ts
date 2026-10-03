@@ -1,5 +1,4 @@
 import {
-  ACTION_FIELDS,
   QR_FIELD_ALIASES,
   REGISTRATION_MAIL_FIELD_ALIASES,
   RSVP_FIELD_ALIASES,
@@ -98,49 +97,6 @@ function schemaFromProperties(
   return schema
 }
 
-function hasColumn(schema: Record<string, string>, names: string[]) {
-  return Boolean(schemaColumn(schema, names))
-}
-
-async function ensureActionColumns(schema: Record<string, string>) {
-  const missing: Record<string, unknown> = {}
-  if (!hasColumn(schema, REGISTRATION_MAIL_FIELD_ALIASES)) {
-    missing[ACTION_FIELDS.registration_mail_status] = {
-      select: { options: [{ name: "None" }, { name: "Sent" }] },
-    }
-  }
-  if (!hasColumn(schema, RSVP_FIELD_ALIASES)) {
-    missing[ACTION_FIELDS.rsvp_status] = {
-      select: { options: [{ name: "None" }, { name: "Sent" }, { name: "Confirmed" }] },
-    }
-  }
-  if (!hasColumn(schema, QR_FIELD_ALIASES)) {
-    missing[ACTION_FIELDS.qr_status] = {
-      select: {
-        options: [{ name: "None" }, { name: "Generated" }, { name: "Sent" }],
-      },
-    }
-  }
-  if (Object.keys(missing).length === 0) return schema
-  const dbId = extractDatabaseId(databaseRef())
-  const response = await fetch(`${NOTION_API}/databases/${dbId}`, {
-    method: "PATCH",
-    headers: headers(),
-    cache: "no-store",
-    body: JSON.stringify({ properties: missing }),
-  })
-  if (!response.ok) {
-    console.error(
-      `Could not add Notion mail columns HTTP ${response.status}: ${(await response.text()).slice(0, 200)}`,
-    )
-    return schema
-  }
-  const data = (await response.json()) as {
-    properties?: Record<string, { type?: string }>
-  }
-  return schemaFromProperties(data.properties)
-}
-
 export async function fetchNotionSchema() {
   const dbId = extractDatabaseId(databaseRef())
   const response = await fetch(`${NOTION_API}/databases/${dbId}`, {
@@ -153,7 +109,7 @@ export async function fetchNotionSchema() {
   const data = (await response.json()) as {
     properties?: Record<string, { type?: string }>
   }
-  return ensureActionColumns(schemaFromProperties(data.properties))
+  return schemaFromProperties(data.properties)
 }
 
 export async function queryNotionPages() {
@@ -242,12 +198,15 @@ export function registrationFromNotionPage(
   | "team_id_display"
   | "registration_mail_status"
   | "registration_mail_sent_at"
+  | "registration_mail_count"
   | "rsvp_status"
   | "rsvp_sent_at"
+  | "rsvp_count"
   | "qr_status"
   | "qr_token"
   | "qr_generated_at"
   | "qr_sent_at"
+  | "qr_count"
 > {
   const props = (page.properties || {}) as Record<string, unknown>
   const map = fields()

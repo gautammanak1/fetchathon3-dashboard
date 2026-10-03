@@ -28,10 +28,6 @@ export async function sendRegistrationEmails(rows: Registration[]): Promise<Send
   const transporter = createSmtpTransport()
   try {
     for (const row of rows) {
-      if (row.registration_mail_status === "sent") {
-        result.skipped.push({ id: row.id, reason: "Registration mail already sent" })
-        continue
-      }
       const email = row.email.trim()
       if (!EMAIL_RE.test(email)) {
         result.skipped.push({ id: row.id, reason: "Missing or invalid email" })
@@ -243,12 +239,15 @@ function sampleTestRow(): Registration {
     created_at: new Date().toISOString(),
     registration_mail_status: "none",
     registration_mail_sent_at: null,
+    registration_mail_count: 0,
     rsvp_status: "none",
     rsvp_sent_at: null,
+    rsvp_count: 0,
     qr_status: "none",
     qr_token: null,
     qr_generated_at: null,
     qr_sent_at: null,
+    qr_count: 0,
     property_types: {},
   }
 }

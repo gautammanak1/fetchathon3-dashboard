@@ -31,11 +31,11 @@ export function ActionBar({
   filtered: Registration[]
   busy: boolean
   canManage: boolean
-  onRegistration: () => void
-  onRsvp: () => void
+  onRegistration: (force?: boolean) => void
+  onRsvp: (force?: boolean) => void
   onRsvpAll: () => void
   onGenerateQr: () => void
-  onSendQr: () => void
+  onSendQr: (force?: boolean) => void
 }) {
   const count = selected.length
   const filteredCount = filtered.length
@@ -44,11 +44,11 @@ export function ActionBar({
     (row) => row.registration_mail_status !== "sent",
   )
   const alreadyMailed = count - pendingRegistration.length
-  const registrationReady = pendingRegistration.length > 0
   const pendingRsvp = selected.filter((row) => row.rsvp_status === "none")
-  const rsvpReady = pendingRsvp.length > 0
-  const qrReady = count > 0
-  const sendReady = count > 0 && selected.some((row) => row.qr_status !== "sent")
+  const alreadyRsvp = count - pendingRsvp.length
+  const pendingQr = selected.filter((row) => row.qr_status !== "sent")
+  const alreadyQr = count - pendingQr.length
+  const filteredPendingRsvp = filtered.filter((row) => row.rsvp_status === "none")
 
   if (!canManage) {
     return null
@@ -65,7 +65,7 @@ export function ActionBar({
       </p>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="default" disabled={!registrationReady || busy}>
+          <Button variant="default" disabled={count === 0 || busy}>
             <MailIcon />
             Send registration
           </Button>
@@ -76,23 +76,32 @@ export function ActionBar({
             <AlertDialogDescription>
               {pendingRegistration.length === 1
                 ? `This emails only ${pendingRegistration[0]?.email || "this person"} the registration confirmation and Discord invite.`
-                : `This emails ${pendingRegistration.length} people who have not received registration mail yet.`}
+                : pendingRegistration.length > 0
+                  ? `Send new only emails ${pendingRegistration.length} people who have not received registration mail yet.`
+                  : "Everyone selected already received registration mail."}
               {alreadyMailed > 0
-                ? ` ${alreadyMailed} already mailed ${alreadyMailed === 1 ? "person is" : "people are"} skipped.`
+                ? ` ${alreadyMailed} already mailed ${alreadyMailed === 1 ? "person can" : "people can"} be sent again.`
                 : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onRegistration}>
-              Send registration
-            </AlertDialogAction>
+            {pendingRegistration.length > 0 ? (
+              <AlertDialogAction onClick={() => onRegistration(false)}>
+                Send new only
+              </AlertDialogAction>
+            ) : null}
+            {alreadyMailed > 0 ? (
+              <AlertDialogAction onClick={() => onRegistration(true)}>
+                Send again
+              </AlertDialogAction>
+            ) : null}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="outline" disabled={!rsvpReady || busy}>
+          <Button variant="outline" disabled={count === 0 || busy}>
             <MailIcon />
             Send RSVP
           </Button>
@@ -103,18 +112,27 @@ export function ActionBar({
             <AlertDialogDescription>
               {count === 1
                 ? `This sends one seat confirmation to ${selected[0]?.team_id_display || "this team"}. Teammates are CC'd on the same email.`
-                : `This sends one seat-confirmation email per team for the ${count} selected people. Teammates are CC'd. Nobody gets a second copy.`}
+                : `This sends one seat-confirmation email per team for the ${count} selected people. Teammates are CC'd. Nobody gets a second copy unless you send again.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onRsvp}>Send RSVP</AlertDialogAction>
+            {pendingRsvp.length > 0 ? (
+              <AlertDialogAction onClick={() => onRsvp(false)}>
+                Send new only
+              </AlertDialogAction>
+            ) : null}
+            {alreadyRsvp > 0 ? (
+              <AlertDialogAction onClick={() => onRsvp(true)}>
+                Send again
+              </AlertDialogAction>
+            ) : null}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="outline" disabled={filteredCount === 0 || busy}>
+          <Button variant="outline" disabled={filteredPendingRsvp.length === 0 || busy}>
             <UsersIcon />
             RSVP all filtered
           </Button>
@@ -123,20 +141,20 @@ export function ActionBar({
           <AlertDialogHeader>
             <AlertDialogTitle>Bulk RSVP all filtered?</AlertDialogTitle>
             <AlertDialogDescription>
-              This emails teams in the current filter that have not received RSVP yet. Already-sent teams are skipped.
+              This emails teams in the current filter that have not received RSVP yet. Already-sent teams are skipped. Open a team and use Send again to resend.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={onRsvpAll}>
-              Send {filteredCount} emails
+              Send {filteredPendingRsvp.length} new emails
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
       <Button
         variant="outline"
-        disabled={!qrReady || busy}
+        disabled={count === 0 || busy}
         onClick={onGenerateQr}
       >
         <QrCodeIcon />
@@ -144,7 +162,7 @@ export function ActionBar({
       </Button>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="outline" disabled={!sendReady || busy}>
+          <Button variant="outline" disabled={count === 0 || busy}>
             <SendIcon />
             Send team QR
           </Button>
@@ -155,11 +173,23 @@ export function ActionBar({
             <AlertDialogDescription>
               This generates the team QR if needed and emails it once. Teammates
               are CC'd. Scanning the QR opens the team pass page.
+              {alreadyQr > 0
+                ? ` ${alreadyQr} already sent ${alreadyQr === 1 ? "person can" : "people can"} be sent again.`
+                : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onSendQr}>Send QR</AlertDialogAction>
+            {pendingQr.length > 0 ? (
+              <AlertDialogAction onClick={() => onSendQr(false)}>
+                Send new only
+              </AlertDialogAction>
+            ) : null}
+            {alreadyQr > 0 ? (
+              <AlertDialogAction onClick={() => onSendQr(true)}>
+                Send again
+              </AlertDialogAction>
+            ) : null}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

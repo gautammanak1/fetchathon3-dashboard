@@ -20,10 +20,10 @@ export function RosterWorkspace({
   busy,
 }: {
   rows: Registration[]
-  onRegistration: (ids: string[]) => Promise<boolean>
-  onRsvp: (ids: string[]) => Promise<boolean>
+  onRegistration: (ids: string[], force?: boolean) => Promise<boolean>
+  onRsvp: (ids: string[], force?: boolean) => Promise<boolean>
   onGenerateQr: (ids: string[]) => Promise<boolean>
-  onSendQr: (ids: string[]) => Promise<boolean>
+  onSendQr: (ids: string[], force?: boolean) => Promise<boolean>
   busy: boolean
 }) {
   const { isAdmin } = useAuth()
@@ -84,18 +84,22 @@ export function RosterWorkspace({
         filtered={filtered}
         busy={busy}
         canManage={isAdmin}
-        onRegistration={() =>
+        onRegistration={(force) =>
           void onRegistration(
-            selected
-              .filter((row) => row.registration_mail_status !== "sent")
-              .map((row) => row.id),
+            (force
+              ? selected
+              : selected.filter((row) => row.registration_mail_status !== "sent")
+            ).map((row) => row.id),
+            force,
           )
         }
-        onRsvp={() =>
+        onRsvp={(force) =>
           void onRsvp(
-            selected
-              .filter((row) => row.rsvp_status === "none")
-              .map((row) => row.id),
+            (force
+              ? selected
+              : selected.filter((row) => row.rsvp_status === "none")
+            ).map((row) => row.id),
+            force,
           )
         }
         onRsvpAll={() =>
@@ -106,7 +110,15 @@ export function RosterWorkspace({
           )
         }
         onGenerateQr={() => void onGenerateQr(selected.map((row) => row.id))}
-        onSendQr={() => void onSendQr(selected.map((row) => row.id))}
+        onSendQr={(force) =>
+          void onSendQr(
+            (force
+              ? selected
+              : selected.filter((row) => row.qr_status !== "sent")
+            ).map((row) => row.id),
+            force,
+          )
+        }
       />
       <RegistrationTable
         rows={filtered}
@@ -129,14 +141,10 @@ export function RosterWorkspace({
         busy={busy}
         onClose={() => setOpenRow(null)}
         onPreviewQr={(id) => void previewQr(id)}
-        onRegistration={(id) => {
-          const row = rows.find((item) => item.id === id)
-          if (!row || row.registration_mail_status === "sent") return
-          void onRegistration([id])
-        }}
-        onRsvp={(id) => void onRsvp([id])}
+        onRegistration={(id, force) => void onRegistration([id], force)}
+        onRsvp={(id, force) => void onRsvp([id], force)}
         onGenerateQr={(id) => void onGenerateQr([id])}
-        onSendQr={(id) => void onSendQr([id])}
+        onSendQr={(id, force) => void onSendQr([id], force)}
       />
       <QrPreviewDialog
         open={Boolean(qr)}

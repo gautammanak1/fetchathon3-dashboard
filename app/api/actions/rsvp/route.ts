@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server"
 
-import { upsertActions } from "@/lib/actions-store"
+import { mailMeta, persistMailRecords } from "@/lib/mail-db"
 import { requireAdmin } from "@/lib/require-admin"
 import { findRegistration, loadRoster } from "@/lib/roster"
 import { resultNote, sendRsvpEmails } from "@/lib/send-bulk"
-import { teamMailGroups } from "@/lib/team-mail"
 import { isSmtpConfigured } from "@/lib/smtp"
-import {
-  fetchNotionSchema,
-  isNotionConfigured,
-  updateNotionActionFields,
-} from "@/lib/notion"
+import { teamMailGroups } from "@/lib/team-mail"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -25,8 +20,9 @@ export async function POST(request: Request) {
     )
   }
 
-  const body = (await request.json()) as { ids?: string[] }
+  const body = (await request.json()) as { ids?: string[]; force?: boolean }
   const ids = [...new Set((body.ids || []).filter(Boolean))]
+  const force = body.force === true
   if (ids.length === 0) {
     return NextResponse.json({ error: "Select at least one person" }, { status: 400 })
   }
@@ -36,7 +32,7 @@ export async function POST(request: Request) {
     .map((id) => findRegistration(roster, id))
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
   const groups = teamMailGroups(rows, roster.registrations).filter((group) =>
-    group.members.some((member) => member.rsvp_status === "none"),
+    force ? true : group.members.some((member) => member.rsvp_status === "none"),
   )
   if (groups.length === 0) {
     return NextResponse.json({
@@ -49,32 +45,24 @@ export async function POST(request: Request) {
         id: row.id,
         reason: "RSVP already sent",
       })),
-      note: "No new RSVP emails. Selected teams already received seat confirmation.",
+      note: "No new RSVP emails. Selected teams already received seat confirmation. Use Send again to resend.",
     })
   }
 
   const result = await sendRsvpEmails(groups)
-
   const sentAt = new Date().toISOString()
-  if (result.sentIds.length) {
-    await upsertActions(result.sentIds, {
-      rsvp_status: "sent",
-      rsvp_sent_at: sentAt,
-    })
-    if (isNotionConfigured()) {
-      try {
-        const schema = await fetchNotionSchema()
-        await Promise.all(
-          result.sentIds.map((id) =>
-            updateNotionActionFields(id, { rsvp_status: "Sent" }, schema).catch(
-              () => undefined,
-            ),
-          ),
-        )
-      } catch {
-        // Local overlay remains if Notion write fails.
-      }
-    }
+  const sentRows = groups
+    .flatMap((group) => group.members)
+    .filter((row) => result.sentIds.includes(row.id))
+  if (sentRows.length) {
+    await persistMailRecords(
+      sentRows.map(mailMeta),
+      {
+        rsvp_status: "sent",
+        rsvp_sent_at: sentAt,
+      },
+      "rsvp",
+    )
   }
 
   return NextResponse.json({

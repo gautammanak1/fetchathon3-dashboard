@@ -8,6 +8,7 @@ import {
   normalizeTeamId,
 } from "@/lib/fields"
 import { getActionMap } from "@/lib/actions-store"
+import { getMailMap } from "@/lib/mail-db"
 import { getTeamQrMap, teamKey } from "@/lib/team-qr-store"
 import {
   isNotionConfigured,
@@ -60,12 +61,16 @@ function applyAction(row: Registration, action?: ActionRecord | null): Registrat
         : row.registration_mail_status,
     registration_mail_sent_at:
       action.registration_mail_sent_at || row.registration_mail_sent_at,
+    registration_mail_count:
+      action.registration_mail_count || row.registration_mail_count,
     rsvp_status: action.rsvp_status !== "none" ? action.rsvp_status : row.rsvp_status,
     rsvp_sent_at: action.rsvp_sent_at || row.rsvp_sent_at,
+    rsvp_count: action.rsvp_count || row.rsvp_count,
     qr_status: action.qr_status !== "none" ? action.qr_status : row.qr_status,
     qr_token: action.qr_token || row.qr_token,
     qr_generated_at: action.qr_generated_at || row.qr_generated_at,
     qr_sent_at: action.qr_sent_at || row.qr_sent_at,
+    qr_count: action.qr_count || row.qr_count,
   }
 }
 
@@ -194,27 +199,32 @@ export async function loadRoster(): Promise<RosterPayload> {
   }
 
   const overlay = await getActionMap()
+  const mailDb = await getMailMap()
   const schema = await fetchNotionSchema()
   const pages = await queryNotionPages()
   const raw = pages.map((page) => {
     const base = registrationFromNotionPage(page, schema)
     const fromNotion = actionFieldsFromNotionPage(page)
-    return applyAction(
+    const withOverlay = applyAction(
       {
         ...base,
         team_id_display: formatTeamId(base.team_id),
         metro: deriveMetro(base.city),
         registration_mail_status: fromNotion.registration_mail_status,
         registration_mail_sent_at: null,
+        registration_mail_count: 0,
         rsvp_status: fromNotion.rsvp_status,
         rsvp_sent_at: null,
+        rsvp_count: 0,
         qr_status: fromNotion.qr_status,
         qr_token: null,
         qr_generated_at: null,
         qr_sent_at: null,
+        qr_count: 0,
       },
       overlay[base.id],
     )
+    return applyAction(withOverlay, mailDb[base.id])
   })
   const visible = raw.filter((row) => !isHiddenVenue(row.city, row.metro))
   const payload = toPayload("notion", true, schema, visible)

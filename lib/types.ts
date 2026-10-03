@@ -28,24 +28,30 @@ export type Registration = {
   created_at: string
   registration_mail_status: "none" | "sent"
   registration_mail_sent_at: string | null
+  registration_mail_count: number
   rsvp_status: RsvpStatus
   rsvp_sent_at: string | null
+  rsvp_count: number
   qr_status: QrStatus
   qr_token: string | null
   qr_generated_at: string | null
   qr_sent_at: string | null
+  qr_count: number
   property_types: Record<string, string>
 }
 
 export type ActionRecord = {
   registration_mail_status: "none" | "sent"
   registration_mail_sent_at: string | null
+  registration_mail_count: number
   rsvp_status: RsvpStatus
   rsvp_sent_at: string | null
+  rsvp_count: number
   qr_status: QrStatus
   qr_token: string | null
   qr_generated_at: string | null
   qr_sent_at: string | null
+  qr_count: number
 }
 
 export type Team = {

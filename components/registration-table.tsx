@@ -15,8 +15,21 @@ import {
 } from "@/components/ui/table"
 import type { Registration } from "@/lib/types"
 
-function StatusBadge({ value }: { value: string }) {
-  return <Badge variant="outline">{value || "—"}</Badge>
+function StatusBadge({
+  value,
+  at,
+  count,
+}: {
+  value: string
+  at?: string | null
+  count?: number
+}) {
+  const label = count && count > 1 ? `${value || "—"} ×${count}` : value || "—"
+  return (
+    <Badge variant="outline" title={at ? `Last sent ${shortDate(at)}` : undefined}>
+      {label}
+    </Badge>
+  )
 }
 
 function shortDate(value: string) {
@@ -141,13 +154,25 @@ export function RegistrationTable({
                   {showActions ? (
                     <>
                       <TableCell>
-                        <StatusBadge value={row.registration_mail_status} />
+                        <StatusBadge
+                          value={row.registration_mail_status}
+                          at={row.registration_mail_sent_at}
+                          count={row.registration_mail_count}
+                        />
                       </TableCell>
                       <TableCell>
-                        <StatusBadge value={row.rsvp_status} />
+                        <StatusBadge
+                          value={row.rsvp_status}
+                          at={row.rsvp_sent_at}
+                          count={row.rsvp_count}
+                        />
                       </TableCell>
                       <TableCell>
-                        <StatusBadge value={row.qr_status} />
+                        <StatusBadge
+                          value={row.qr_status}
+                          at={row.qr_sent_at}
+                          count={row.qr_count}
+                        />
                       </TableCell>
                     </>
                   ) : null}

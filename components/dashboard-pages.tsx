@@ -123,17 +123,29 @@ export function RegistrationsPage() {
           <RosterWorkspace
             rows={data.registrations}
             busy={busy}
-            onRegistration={(ids) =>
-              act("/api/actions/registration", { ids }, "Registration emails sent")
+            onRegistration={(ids, force) =>
+              act(
+                "/api/actions/registration",
+                { ids, force },
+                force ? "Registration emails resent" : "Registration emails sent",
+              )
             }
-            onRsvp={(ids) =>
-              act("/api/actions/rsvp", { ids }, "Seat confirmation emails sent")
+            onRsvp={(ids, force) =>
+              act(
+                "/api/actions/rsvp",
+                { ids, force },
+                force ? "Seat confirmation emails resent" : "Seat confirmation emails sent",
+              )
             }
             onGenerateQr={(ids) =>
               act("/api/actions/qr", { ids, mode: "generate" }, "Team QR codes generated")
             }
-            onSendQr={(ids) =>
-              act("/api/actions/qr", { ids, mode: "send" }, "Team QR emails sent")
+            onSendQr={(ids, force) =>
+              act(
+                "/api/actions/qr",
+                { ids, mode: "send", force },
+                force ? "Team QR emails resent" : "Team QR emails sent",
+              )
             }
           />
         </>
@@ -218,17 +230,29 @@ export function ActionsPage() {
           <RosterWorkspace
             rows={data.registrations}
             busy={busy}
-            onRegistration={(ids) =>
-              act("/api/actions/registration", { ids }, "Registration emails sent")
+            onRegistration={(ids, force) =>
+              act(
+                "/api/actions/registration",
+                { ids, force },
+                force ? "Registration emails resent" : "Registration emails sent",
+              )
             }
-            onRsvp={(ids) =>
-              act("/api/actions/rsvp", { ids }, "Seat confirmation emails sent")
+            onRsvp={(ids, force) =>
+              act(
+                "/api/actions/rsvp",
+                { ids, force },
+                force ? "Seat confirmation emails resent" : "Seat confirmation emails sent",
+              )
             }
             onGenerateQr={(ids) =>
               act("/api/actions/qr", { ids, mode: "generate" }, "Team QR codes generated")
             }
-            onSendQr={(ids) =>
-              act("/api/actions/qr", { ids, mode: "send" }, "Team QR emails sent")
+            onSendQr={(ids, force) =>
+              act(
+                "/api/actions/qr",
+                { ids, mode: "send", force },
+                force ? "Team QR emails resent" : "Team QR emails sent",
+              )
             }
           />
         </>

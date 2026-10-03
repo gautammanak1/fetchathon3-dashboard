@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
 
-import { upsertActions } from "@/lib/actions-store"
 import { getAdminSession } from "@/lib/auth"
+import { mailMeta, persistMailRecords } from "@/lib/mail-db"
+import { teamPassUrl } from "@/lib/pass-url"
 import { requireAdmin } from "@/lib/require-admin"
 import { findRegistration, loadRoster } from "@/lib/roster"
-import { teamPassUrl } from "@/lib/pass-url"
 import { resultNote, sendTeamQrEmails } from "@/lib/send-bulk"
-import { teamMailGroups } from "@/lib/team-mail"
 import { isSmtpConfigured } from "@/lib/smtp"
+import { teamMailGroups } from "@/lib/team-mail"
 import {
   ensureTeamQr,
   getTeamQr,
@@ -15,11 +15,6 @@ import {
   teamKey,
   teamQrImage,
 } from "@/lib/team-qr-store"
-import {
-  fetchNotionSchema,
-  isNotionConfigured,
-  updateNotionActionFields,
-} from "@/lib/notion"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -66,7 +61,7 @@ export async function GET(request: Request) {
       team_id_display: row.team_id_display || key,
       venue: row.city,
     })
-    await upsertActions([row.id], {
+    await persistMailRecords([mailMeta(row)], {
       qr_status: "generated",
       qr_token: record.token,
       qr_generated_at: record.generated_at,
@@ -91,9 +86,11 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     ids?: string[]
     mode?: "generate" | "send"
+    force?: boolean
   }
   const ids = [...new Set((body.ids || []).filter(Boolean))]
   const mode = body.mode === "send" ? "send" : "generate"
+  const force = body.force === true
   if (ids.length === 0) {
     return NextResponse.json({ error: "Select at least one person" }, { status: 400 })
   }
@@ -116,25 +113,14 @@ export async function POST(request: Request) {
       teams += 1
       const memberIds = group.members.map((member) => member.id)
       generatedIds.push(...memberIds)
-      await upsertActions(memberIds, {
-        qr_status: "generated",
-        qr_token: record.token,
-        qr_generated_at: record.generated_at || now,
-      })
-    }
-    if (generatedIds.length && isNotionConfigured()) {
-      try {
-        const schema = await fetchNotionSchema()
-        await Promise.all(
-          generatedIds.map((id) =>
-            updateNotionActionFields(id, { qr_status: "Generated" }, schema).catch(
-              () => undefined,
-            ),
-          ),
-        )
-      } catch {
-        // Local overlay remains if Notion write fails.
-      }
+      await persistMailRecords(
+        group.members.map(mailMeta),
+        {
+          qr_status: "generated",
+          qr_token: record.token,
+          qr_generated_at: record.generated_at || now,
+        },
+      )
     }
     return NextResponse.json({
       ok: true,
@@ -152,7 +138,7 @@ export async function POST(request: Request) {
   }
 
   const groups = teamMailGroups(selected, roster.registrations).filter((group) =>
-    group.members.some((member) => member.qr_status !== "sent"),
+    force ? true : group.members.some((member) => member.qr_status !== "sent"),
   )
   if (groups.length === 0) {
     return NextResponse.json({
@@ -165,7 +151,7 @@ export async function POST(request: Request) {
         id: row.id,
         reason: "QR mail already sent",
       })),
-      note: "No new QR emails. Selected teams already received the venue pass.",
+      note: "No new QR emails. Selected teams already received the venue pass. Use Send again to resend.",
     })
   }
 
@@ -177,14 +163,11 @@ export async function POST(request: Request) {
           team_id_display: group.primary.team_id_display || group.key,
           venue: group.primary.city || "",
         })
-        await upsertActions(
-          group.members.map((member) => member.id),
-          {
-            qr_status: "generated",
-            qr_token: record.token,
-            qr_generated_at: record.generated_at,
-          },
-        )
+        await persistMailRecords(group.members.map(mailMeta), {
+          qr_status: "generated",
+          qr_token: record.token,
+          qr_generated_at: record.generated_at,
+        })
         return [group.key, record] as const
       }),
     ),
@@ -197,28 +180,25 @@ export async function POST(request: Request) {
 
   if (result.sentIds.length) {
     const sentAt = new Date().toISOString()
-    await upsertActions(result.sentIds, {
-      qr_status: "sent",
-      qr_sent_at: sentAt,
-    })
-    const keys = groups
-      .filter((group) => group.members.some((member) => result.sentIds.includes(member.id)))
-      .map((group) => group.key)
-    await markTeamQrSent(keys)
-    if (isNotionConfigured()) {
-      try {
-        const schema = await fetchNotionSchema()
-        await Promise.all(
-          result.sentIds.map((id) =>
-            updateNotionActionFields(id, { qr_status: "Sent" }, schema).catch(
-              () => undefined,
-            ),
-          ),
-        )
-      } catch {
-        // Overlay remains if Notion write fails.
-      }
+    const sentGroups = groups.filter((group) =>
+      group.members.some((member) => result.sentIds.includes(member.id)),
+    )
+    for (const group of sentGroups) {
+      const record = records.get(group.key)
+      await persistMailRecords(
+        group.members
+          .filter((member) => result.sentIds.includes(member.id))
+          .map(mailMeta),
+        {
+          qr_status: "sent",
+          qr_sent_at: sentAt,
+          qr_token: record?.token,
+          qr_generated_at: record?.generated_at,
+        },
+        "qr",
+      )
     }
+    await markTeamQrSent(sentGroups.map((group) => group.key))
   }
 
   return NextResponse.json({
