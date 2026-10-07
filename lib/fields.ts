@@ -34,6 +34,14 @@ export const REGISTRATION_MAIL_FIELD_ALIASES = [
 
 export const RSVP_FIELD_ALIASES = ["RSVP Status", "RSVP", "Rsvp Status"]
 export const QR_FIELD_ALIASES = ["QR Status", "QR", "Qr Status"]
+export const CHECKIN_FIELD_ALIASES = [
+  "Check-in",
+  "Check In",
+  "Checked In",
+  "Checkin",
+  "Joined",
+  "Attendance",
+]
 
 export type FieldKey = keyof typeof DEFAULT_FIELDS
 

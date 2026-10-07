@@ -16,6 +16,7 @@ import { useAuth } from "@/hooks/use-auth"
 import {
   LayoutDashboardIcon,
   QrCodeIcon,
+  ScanLineIcon,
   UsersIcon,
   UsersRoundIcon,
 } from "lucide-react"
@@ -44,6 +45,11 @@ const adminNav = [
     title: "RSVP & QR",
     url: "/dashboard/actions",
     icon: <QrCodeIcon />,
+  },
+  {
+    title: "Check-in",
+    url: "/dashboard/check-in",
+    icon: <ScanLineIcon />,
   },
 ]
 

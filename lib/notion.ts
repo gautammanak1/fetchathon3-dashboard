@@ -1,4 +1,5 @@
 import {
+  CHECKIN_FIELD_ALIASES,
   QR_FIELD_ALIASES,
   REGISTRATION_MAIL_FIELD_ALIASES,
   RSVP_FIELD_ALIASES,
@@ -263,6 +264,9 @@ function coerceProperty(notionType: string, text: string) {
       Boolean(text) && !["none", "no", "false"].includes(text.toLowerCase())
     return { checkbox: on }
   }
+  if (notionType === "date") {
+    return text ? { date: { start: text } } : { date: null }
+  }
   return null
 }
 
@@ -303,7 +307,14 @@ export async function updateNotionActionFields(
     const shaped = coerceProperty(schema[qrCol], values.qr_status)
     if (shaped) properties[qrCol] = shaped
   }
-  if (Object.keys(properties).length === 0) return
+  await patchNotionPage(pageId, properties)
+}
+
+async function patchNotionPage(
+  pageId: string,
+  properties: Record<string, unknown>,
+) {
+  if (Object.keys(properties).length === 0) return false
   const response = await fetch(`${NOTION_API}/pages/${pageId}`, {
     method: "PATCH",
     headers: headers(),
@@ -313,5 +324,59 @@ export async function updateNotionActionFields(
   if (!response.ok) {
     const body = await response.text()
     throw new Error(`Notion patch HTTP ${response.status}: ${body.slice(0, 200)}`)
+  }
+  return true
+}
+
+function checkInProperty(notionType: string, at: string, joined: boolean) {
+  if (notionType === "checkbox") return { checkbox: joined }
+  if (notionType === "date") return joined ? { date: { start: at } } : { date: null }
+  if (notionType === "select") return joined ? { select: { name: "Joined" } } : { select: null }
+  if (notionType === "status") return joined ? { status: { name: "Joined" } } : { status: null }
+  if (notionType === "rich_text") {
+    return joined
+      ? { rich_text: [{ text: { content: `Joined ${at}` } }] }
+      : { rich_text: [] }
+  }
+  return null
+}
+
+export async function ensureNotionCheckInField(schema: Record<string, string>) {
+  if (schemaColumn(schema, CHECKIN_FIELD_ALIASES)) return schema
+  const dbId = extractDatabaseId(databaseRef())
+  const response = await fetch(`${NOTION_API}/databases/${dbId}`, {
+    method: "PATCH",
+    headers: headers(),
+    cache: "no-store",
+    body: JSON.stringify({
+      properties: {
+        "Check-in": { checkbox: {} },
+      },
+    }),
+  })
+  if (!response.ok) {
+    const body = await response.text()
+    console.error("notion check-in field create failed", body.slice(0, 200))
+    return schema
+  }
+  return { ...schema, "Check-in": "checkbox" }
+}
+
+export async function updateNotionCheckIn(
+  pageId: string,
+  at: string,
+  schema: Record<string, string>,
+  joined = true,
+) {
+  const column = schemaColumn(schema, CHECKIN_FIELD_ALIASES)
+  if (!column) return "skipped" as const
+  const shaped = checkInProperty(schema[column] || "", at, joined)
+  if (!shaped) return "skipped" as const
+  try {
+    await patchNotionPage(pageId, { [column]: shaped })
+    return "updated" as const
+  } catch (error) {
+    console.error("notion check-in patch failed", error)
+    return "failed" as const
   }
 }
