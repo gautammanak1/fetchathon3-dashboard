@@ -551,3 +551,36 @@ export function qrHtml(input: {
           </tr>`
   return wrapEmail(qrSubject(input.teamIdDisplay), inner)
 }
+
+export function composeMessageHtml(subject: string, body: string) {
+  const paragraphs = body
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const html = escapeHtml(part).replace(/\n/g, "<br>")
+      return `<p style="margin:0 0 14px;font-size:16px;line-height:1.65;color:#3d3958;">${html}</p>`
+    })
+    .join("")
+  const inner = `
+          <tr>
+            <td style="padding:32px 36px 32px;font-family:${FONT};color:#1a1740;">
+              ${paragraphs}
+              <p style="margin:18px 0 0;padding-top:18px;border-top:1px solid #ece8f5;font-size:12px;line-height:1.6;color:#8a849e;">
+                For any queries, email innovationlab@fetch.ai.
+              </p>
+              <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#8a849e;">Fetch-A-Thon / Fetch.ai Innovation Lab</p>
+            </td>
+          </tr>`
+  return wrapEmail(subject, inner)
+}
+
+export function composeMessageText(body: string) {
+  return [
+    body.trim(),
+    "",
+    "For any queries, email innovationlab@fetch.ai.",
+    "",
+    "Fetch-A-Thon / Fetch.ai Innovation Lab",
+  ].join("\n")
+}

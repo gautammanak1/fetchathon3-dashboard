@@ -15,6 +15,7 @@ import {
 import { useAuth } from "@/hooks/use-auth"
 import {
   LayoutDashboardIcon,
+  MailIcon,
   QrCodeIcon,
   ScanLineIcon,
   UsersIcon,
@@ -50,6 +51,11 @@ const adminNav = [
     title: "Check-in",
     url: "/dashboard/check-in",
     icon: <ScanLineIcon />,
+  },
+  {
+    title: "Mail",
+    url: "/dashboard/mail",
+    icon: <MailIcon />,
   },
 ]
 
