@@ -1,3 +1,4 @@
+import { mailVenue } from "@/lib/event-venues"
 import {
   qrHtml,
   qrSubject,
@@ -9,6 +10,7 @@ import {
   rsvpSubject,
   rsvpText,
 } from "@/lib/email-templates"
+import { rsvpConfirmUrl } from "@/lib/rsvp-confirm"
 import { createSmtpTransport, EMAIL_RE, sendSmtpMail, sleep } from "@/lib/smtp"
 import { type TeamMailGroup } from "@/lib/team-mail"
 import { teamQrImage, type TeamQrRecord } from "@/lib/team-qr-store"
@@ -100,9 +102,9 @@ export async function sendRsvpEmails(groups: TeamMailGroup[]): Promise<SendResul
             to: group.to.email,
             toName: group.to.name,
             cc: group.cc.map((item) => item.email),
-            subject: rsvpSubject(),
-            text: rsvpText(group.primary, group.members),
-            html: rsvpHtml(group.primary, group.members),
+            subject: rsvpSubject(mailVenue(group.primary.city, group.primary.metro).label),
+            text: rsvpText(group.primary, group.members, rsvpConfirmUrl(group.key)),
+            html: rsvpHtml(group.primary, group.members, rsvpConfirmUrl(group.key)),
           },
           transporter,
         )

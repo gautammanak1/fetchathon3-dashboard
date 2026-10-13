@@ -38,6 +38,7 @@ const SAMPLE = {
   team: "fetchathon3.0-12",
   venue: "Bengaluru",
   email: "alex@example.com",
+  confirm_url: "https://example.com/rsvp/confirm/sample",
 }
 
 function venueLabel(city: string, metro: string) {
@@ -236,7 +237,7 @@ export function MailComposer() {
           <CardTitle>Write mail</CardTitle>
           <CardDescription>
             Write the message here, save it if you want to reuse it, then send it.
-            Use {"{{name}}"}, {"{{team}}"}, and {"{{venue}}"} to personalize each email.
+            Use {"{{name}}"}, {"{{team}}"}, {"{{venue}}"}, and {"{{confirm_url}}"} to personalize each email.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
@@ -258,7 +259,7 @@ export function MailComposer() {
               onChange={(event) => setBody(event.target.value)}
               placeholder={"Hi {{name}},\n\nYour team {{team}} is confirmed for {{venue}}."}
               className="min-h-48"
-              maxLength={5000}
+              maxLength={12000}
             />
           </div>
           <div className="grid gap-2">

@@ -5,10 +5,11 @@ export type MailFields = {
   team: string
   venue: string
   email: string
+  confirm_url?: string
 }
 
 const TOKEN =
-  /\{\{\s*(name|team|venue|email)\s*\}\}/gi
+  /\{\{\s*(name|team|venue|email|confirm_url)\s*\}\}/gi
 
 export function fillTemplate(template: string, fields: MailFields) {
   const values: Record<string, string> = {
@@ -16,6 +17,7 @@ export function fillTemplate(template: string, fields: MailFields) {
     team: fields.team || "",
     venue: fields.venue || "",
     email: fields.email || "",
+    confirm_url: fields.confirm_url || "",
   }
   return template.replace(TOKEN, (match, key: string) => values[key.toLowerCase()] ?? match)
 }

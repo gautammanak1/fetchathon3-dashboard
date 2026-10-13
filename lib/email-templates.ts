@@ -1,3 +1,13 @@
+import {
+  DOCS_URL,
+  EVENT_DATE,
+  EXAMPLES_URL,
+  HACKPACK_URL,
+  OFFER_CODE,
+  PRIZES,
+  mailVenue,
+} from "@/lib/event-venues"
+import { rsvpPlainMessage } from "@/lib/rsvp-templates"
 import type { Registration } from "@/lib/types"
 
 const DEFAULT_BANNER =
@@ -61,36 +71,6 @@ function participationMode(row: Registration) {
     return "solo" as const
   }
   return "team" as const
-}
-
-function participationBlurb(row: Registration) {
-  const mode = participationMode(row)
-  const role = clean(row.role).toLowerCase()
-  const teamId = row.team_id_display
-  const size = Number(row.team_size)
-  if (mode === "solo") {
-    return {
-      label: "Solo",
-      blurb: "You are confirmed as a solo participant.",
-    }
-  }
-  if (role === "lead") {
-    const sizeBit = Number.isFinite(size) && size > 0
-      ? ` Your team size is ${size}, including you.`
-      : ""
-    const share = teamId
-      ? ` Your teammates will use Team ID ${teamId} at the venue.`
-      : ""
-    return {
-      label: "Team",
-      blurb: `You are confirmed as the team lead.${sizeBit}${share}`,
-    }
-  }
-  const joined = teamId ? ` You are confirmed on Team ID ${teamId}.` : ""
-  return {
-    label: "Team",
-    blurb: `You are confirmed as a team member.${joined}`,
-  }
 }
 
 function detailRows(row: Registration) {
@@ -340,8 +320,10 @@ export function registrationHtml(row: Registration) {
   return wrapEmail(registrationSubject(), inner)
 }
 
-export function rsvpSubject() {
-  return "Your Fetch-A-Thon 3.0 seat is confirmed"
+export function rsvpSubject(venueLabel = "") {
+  return venueLabel
+    ? `You're selected for Fetch-A-Thon 3.0 — ${venueLabel}`
+    : "You're selected for Fetch-A-Thon 3.0 — please confirm"
 }
 
 function teamGreeting(row: Registration, members: Registration[]) {
@@ -360,64 +342,63 @@ function membersListText(members: Registration[]) {
   })
 }
 
-export function rsvpText(row: Registration, members: Registration[] = [row]) {
-  const team = members.length > 1
-  const { label, blurb } = participationBlurb(row)
-  const lines = [
-    teamGreeting(row, members),
-    "",
-    team
-      ? "Your team seats for Fetch-A-Thon 3.0 are confirmed."
-      : "Your seat for Fetch-A-Thon 3.0 is confirmed.",
-    "Please keep this email. We will send your team venue QR later so you can check in at the venue.",
-    team
-      ? "This was sent once to the whole team. Teammates are on CC, so nobody gets a second copy."
-      : "",
-    "",
-    `Participation: ${label}`,
-    blurb,
-    "",
-    team ? "Team" : "Your registration details",
-  ]
-  if (team) {
-    lines.push(...membersListText(members))
-    lines.push("", `Team ID: ${clean(row.team_id_display)}`, `Venue: ${clean(row.city)}`)
-  } else {
-    for (const [field, value] of detailRows(row)) {
-      lines.push(`- ${field}: ${value}`)
-    }
-  }
-  lines.push(
-    "",
-    `Event page: ${eventPageUrl()}`,
-    `Join Discord: ${discordInviteUrl()}`,
-    "",
-    "For any queries, email innovationlab@fetch.ai and the Innovation Lab team will get back to you.",
-    "",
-    "Fetch-A-Thon / Fetch.ai Innovation Lab",
-  )
-  return lines.filter((line, index, all) => !(line === "" && all[index - 1] === "")).join("\n")
+function mailButton(href: string, label: string, color = "#241b5e") {
+  return `<a href="${escapeHtml(href)}" style="display:inline-block;background:${color};color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;line-height:1;padding:14px 18px;border-radius:8px;">${escapeHtml(label)}</a>`
 }
 
-export function rsvpHtml(row: Registration, members: Registration[] = [row]) {
+export function rsvpText(
+  row: Registration,
+  members: Registration[] = [row],
+  confirmUrl = "",
+) {
+  const venue = mailVenue(row.city, row.metro)
+  const teamLines = [
+    members.length > 1 ? "Team" : "Your registration",
+    ...membersListText(members),
+    `Team ID: ${clean(row.team_id_display) || "Solo"}`,
+    `Venue: ${venue.label}`,
+  ]
+  return rsvpPlainMessage({
+    greeting: teamGreeting(row, members),
+    venue,
+    confirmUrl,
+    discordUrl: discordInviteUrl(),
+    teamLines,
+  })
+}
+
+export function rsvpHtml(
+  row: Registration,
+  members: Registration[] = [row],
+  confirmUrl = "",
+) {
+  const venue = mailVenue(row.city, row.metro)
   const team = members.length > 1
   const name = escapeHtml(teamGreeting(row, members).replace(/^Hi |!$/g, "") || "there")
-  const { label, blurb } = participationBlurb(row)
+  const prizeRows = PRIZES.map(
+    ([title, amount, detail]) => `
+                <tr>
+                  <td style="padding:8px 0;border-bottom:1px solid #ece8f5;font-family:${FONT};font-size:14px;color:#1a1740;">${escapeHtml(title)}</td>
+                  <td style="padding:8px 0;border-bottom:1px solid #ece8f5;font-family:${FONT};font-size:14px;font-weight:700;color:#2a1f8f;white-space:nowrap;">${escapeHtml(amount)}</td>
+                  <td style="padding:8px 0 8px 12px;border-bottom:1px solid #ece8f5;font-family:${FONT};font-size:13px;color:#4a4663;">${escapeHtml(detail)}</td>
+                </tr>`,
+  ).join("")
+  const mapBlock = venue.mapUrl
+    ? `<p style="margin:12px 0 0;">${mailButton(venue.mapUrl, "Open your location")}</p>`
+    : ""
+  const confirmBlock = confirmUrl
+    ? `<p style="margin:18px 0 0;">${mailButton(confirmUrl, "Confirm my seat")}</p>
+       <p style="margin:8px 0 0;font-size:13px;line-height:1.5;color:#4a4663;">Open the button and confirm. We will mark your team as confirmed.</p>`
+    : ""
   const inner = `
           <tr>
             <td style="padding:32px 36px 0;font-family:${FONT};color:#1a1740;">
-              <p style="margin:0;font-size:26px;line-height:1.25;font-weight:700;">Hi ${name}!</p>
+              <p style="margin:0;font-size:13px;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">Fetch-A-Thon 3.0 · ${escapeHtml(EVENT_DATE)}</p>
+              <p style="margin:10px 0 0;font-size:28px;line-height:1.25;font-weight:700;">Hi ${name}!</p>
               <p style="margin:14px 0 0;font-size:16px;line-height:1.65;color:#3d3958;">
-                ${team
-                  ? "Your team seats for Fetch-A-Thon 3.0 are confirmed."
-                  : "Your seat for Fetch-A-Thon 3.0 is confirmed."}
+                You are selected. Please start building your project.
               </p>
-              <p style="margin:8px 0 0;font-size:16px;line-height:1.65;color:#3d3958;">
-                Please keep this email. We will send your team venue QR later so you can check in at the venue.
-                ${team
-                  ? " This was sent once to the whole team. Teammates are on CC."
-                  : ""}
-              </p>
+              ${confirmBlock}
             </td>
           </tr>
           <tr>
@@ -426,9 +407,10 @@ export function rsvpHtml(row: Registration, members: Registration[] = [row]) {
                 <tr>
                   <td width="4" style="width:4px;background:#5b45f5;font-size:0;line-height:0;">&nbsp;</td>
                   <td style="padding:2px 0 2px 16px;font-family:${FONT};">
-                    <p style="margin:0;font-size:11px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">Confirmed as</p>
-                    <p style="margin:6px 0 0;font-size:22px;line-height:1.2;font-weight:700;color:#2a1f8f;">${escapeHtml(label)}</p>
-                    <p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#4a4663;">${escapeHtml(blurb)}</p>
+                    <p style="margin:0;font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">This is your location</p>
+                    <p style="margin:6px 0 0;font-size:22px;line-height:1.2;font-weight:700;color:#2a1f8f;">${escapeHtml(venue.label)}</p>
+                    ${venue.note && venue.note !== "This is your location." ? `<p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#4a4663;">${escapeHtml(venue.note)}</p>` : ""}
+                    ${mapBlock}
                   </td>
                 </tr>
               </table>
@@ -436,29 +418,68 @@ export function rsvpHtml(row: Registration, members: Registration[] = [row]) {
           </tr>
           <tr>
             <td style="padding:28px 36px 0;font-family:${FONT};">
-              <p style="margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid #ece8f5;font-size:12px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">${team ? "Team" : "Your details"}</p>
+              <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">Discord</p>
+              <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#3d3958;">Join Discord and start building with your team.</p>
+              ${mailButton(discordInviteUrl(), "Join Discord", "#5865f2")}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 36px 0;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f7f4ff;">
+                <tr>
+                  <td style="padding:18px 18px;font-family:${FONT};">
+                    <p style="margin:0;font-size:16px;font-weight:700;color:#1a1740;">Exclusive offer</p>
+                    <p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#3d3958;">Unlock one month free access to ASI:One Pro and Agentverse Premium.</p>
+                    <p style="margin:12px 0 0;font-size:13px;color:#8a849e;">Use code</p>
+                    <p style="margin:4px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:20px;font-weight:700;letter-spacing:0.08em;color:#2a1f8f;">${OFFER_CODE}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 36px 0;font-family:${FONT};">
+              <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">Hackpack</p>
+              <p style="margin:0 0 12px;font-size:15px;line-height:1.6;color:#3d3958;">Read the challenge, rules, and what to submit.</p>
+              ${mailButton(HACKPACK_URL, "Open the hackpack")}
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 36px 0;font-family:${FONT};">
+              <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">Prizes</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                ${prizeRows}
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 36px 0;font-family:${FONT};">
+              <p style="margin:0 0 8px;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">Start building</p>
+              <p style="margin:0 0 8px;font-size:15px;line-height:1.6;color:#3d3958;">
+                <a href="${escapeHtml(EXAMPLES_URL)}" style="color:#3d2db8;text-decoration:underline;">Example agents on GitHub</a>
+              </p>
+              <p style="margin:0;font-size:15px;line-height:1.6;color:#3d3958;">
+                <a href="${escapeHtml(DOCS_URL)}" style="color:#3d2db8;text-decoration:underline;">Innovation Lab docs</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 36px 0;font-family:${FONT};">
+              <p style="margin:0 0 4px;padding-bottom:8px;border-bottom:1px solid #ece8f5;font-size:12px;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">${team ? "Team" : "Your details"}</p>
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
                 ${team ? membersTableHtml(members, row) : detailsTableHtml(row)}
               </table>
             </td>
           </tr>
-          ${ctaButtonsHtml()}
-          <tr>
-            <td style="padding:28px 36px 0;font-family:${FONT};font-size:14px;line-height:1.65;color:#4a4663;">
-              For any queries, email
-              <a href="mailto:innovationlab@fetch.ai" style="color:#3d2db8;text-decoration:underline;">innovationlab@fetch.ai</a>
-              and the Innovation Lab team will get back to you.
-            </td>
-          </tr>
           <tr>
             <td style="padding:24px 36px 32px;font-family:${FONT};">
               <p style="margin:0;padding-top:18px;border-top:1px solid #ece8f5;font-size:12px;line-height:1.6;color:#8a849e;">
-                This email confirms your seat. Bring your team venue QR when you arrive.
+                For any queries, email innovationlab@fetch.ai.
               </p>
               <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#8a849e;">Fetch-A-Thon / Fetch.ai Innovation Lab</p>
             </td>
           </tr>`
-  return wrapEmail(rsvpSubject(), inner)
+  return wrapEmail(rsvpSubject(venue.label), inner)
 }
 
 export function qrSubject(teamIdDisplay: string) {

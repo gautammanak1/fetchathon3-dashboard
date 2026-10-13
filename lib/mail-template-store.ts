@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto"
 
 import { readJsonFile, writeJsonFile } from "@/lib/json-store"
+import { defaultRsvpTemplates } from "@/lib/rsvp-templates"
 
 const STORE_NAME = "mail-templates.json"
 const BLOB_PATH = "fetchathon3-mail-templates.json"
@@ -31,7 +32,7 @@ function normalize(value: unknown): MailTemplate | null {
     id,
     name: name.slice(0, 80),
     subject: subject.slice(0, 180),
-    body: body.slice(0, 5000),
+    body: body.slice(0, 12000),
     updated_at: String(item.updated_at || new Date().toISOString()),
   }
 }
@@ -135,7 +136,30 @@ async function saveStore(store: Store) {
 
 export async function listMailTemplates() {
   return enqueue(async () => {
-    const store = await loadStore()
+    const store = { ...(await loadStore()) }
+    let changed = false
+    for (const draft of defaultRsvpTemplates()) {
+      const id = `rsvp-${draft.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`
+      const current =
+        store[id] ||
+        Object.values(store).find((item) => item.name.toLowerCase() === draft.name.toLowerCase())
+      if (
+        current &&
+        current.subject === draft.subject &&
+        current.body === draft.body
+      ) {
+        continue
+      }
+      store[current?.id || id] = {
+        id: current?.id || id,
+        name: draft.name,
+        subject: draft.subject,
+        body: draft.body,
+        updated_at: new Date().toISOString(),
+      }
+      changed = true
+    }
+    if (changed) await saveStore(store)
     return Object.values(store).sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1))
   })
 }
@@ -148,7 +172,7 @@ export async function saveMailTemplate(input: {
 }) {
   const name = input.name.trim().slice(0, 80)
   const subject = input.subject.trim().slice(0, 180)
-  const body = input.body.trim().slice(0, 5000)
+  const body = input.body.trim().slice(0, 12000)
   if (!name || !subject || !body) {
     throw new Error("Template needs a name, subject, and message")
   }

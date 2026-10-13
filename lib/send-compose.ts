@@ -1,6 +1,9 @@
 import { fillTemplate, parseEmailList, type MailFields } from "@/lib/compose-mail"
 import { composeMessageHtml, composeMessageText } from "@/lib/email-templates"
+import { mailVenue } from "@/lib/event-venues"
 import { formatVenue } from "@/lib/fields"
+import { rsvpConfirmUrl } from "@/lib/rsvp-confirm"
+import { teamKey } from "@/lib/team-qr-store"
 import { loadRoster } from "@/lib/roster"
 import { createSmtpTransport, EMAIL_RE, sendSmtpMail, sleep } from "@/lib/smtp"
 import type { Registration } from "@/lib/types"
@@ -17,11 +20,13 @@ type Recipient = MailFields
 function personFrom(row: Registration): Recipient | null {
   const email = row.email.trim().toLowerCase()
   if (!EMAIL_RE.test(email)) return null
+  const place = mailVenue(row.city, row.metro)
   return {
     email,
     name: row.name.trim() || "there",
     team: row.team_id_display || row.team_id || "",
-    venue: formatVenue(row.city) || row.city || row.metro || "",
+    venue: place.label,
+    confirm_url: rsvpConfirmUrl(teamKey(row)),
   }
 }
 
@@ -54,6 +59,7 @@ export async function resolveRecipients(audience: ComposeAudience) {
           name: email.split("@")[0] || "there",
           team: "",
           venue: "",
+          confirm_url: "",
         },
     )
   }
