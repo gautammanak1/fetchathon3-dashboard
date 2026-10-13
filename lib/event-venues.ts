@@ -3,6 +3,8 @@ export const HACKPACK_URL =
 export const DOCS_URL = "https://innovationlab.fetch.ai/resources/docs/intro"
 export const EXAMPLES_URL = "https://github.com/fetchai/innovation-lab-examples"
 export const OFFER_CODE = "FETCHATHONIND"
+export const DISCORD_NOTE =
+  "Please join Discord and ask if you have any query in the Fetch-A-Thon 3.0 channel."
 export const EVENT_DATE = "24 October 2026"
 
 const MAPS = {

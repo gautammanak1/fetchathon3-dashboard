@@ -19,6 +19,7 @@ export function RsvpConfirmCard({
   note,
   members,
   already,
+  later = false,
 }: {
   token: string
   teamId: string
@@ -26,6 +27,7 @@ export function RsvpConfirmCard({
   note: string
   members: Array<{ name: string; role: string }>
   already: boolean
+  later?: boolean
 }) {
   const [done, setDone] = React.useState(already)
   const [message, setMessage] = React.useState(
@@ -78,11 +80,16 @@ export function RsvpConfirmCard({
             </li>
           ))}
         </ul>
+        {later && !done ? (
+          <p className="text-sm text-muted-foreground">
+            You picked next time. Your seat stays open if you can still make it.
+          </p>
+        ) : null}
         {done ? (
           <p className="text-sm font-medium">{message}</p>
         ) : (
           <Button onClick={() => void confirm()} disabled={busy}>
-            {busy ? "Confirming…" : "Confirm my seat"}
+            {busy ? "Confirming…" : "Absolutely, I'm In!"}
           </Button>
         )}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}

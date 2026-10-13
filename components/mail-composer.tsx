@@ -26,6 +26,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { COMPOSE_EMAIL_RE, fillTemplate, parseEmailList } from "@/lib/compose-mail"
+import { composeMessageHtml } from "@/lib/email-templates"
 import { formatVenue } from "@/lib/fields"
 import type { MailTemplate } from "@/lib/mail-template-store"
 import { useRoster } from "@/hooks/use-roster"
@@ -34,9 +35,9 @@ type Audience = "roster" | "venue" | "custom"
 
 const DRAFT_KEY = "fetchathon-mail-draft"
 const SAMPLE = {
-  name: "Alex",
+  name: "Alex Rivera",
   team: "fetchathon3.0-12",
-  venue: "Bengaluru",
+  venue: "Masters' Union Gurugram",
   email: "alex@example.com",
   confirm_url: "https://example.com/rsvp/confirm/sample",
 }
@@ -312,10 +313,17 @@ export function MailComposer() {
               </p>
             ) : null}
           </div>
-          <div className="grid gap-2 rounded-lg border px-3 py-3">
-            <p className="text-xs text-muted-foreground">Preview</p>
-            <p className="font-medium">{preview.subject}</p>
-            <p className="whitespace-pre-wrap text-sm text-muted-foreground">{preview.body}</p>
+          <div className="grid gap-2">
+            <Label>Email preview</Label>
+            <p className="text-sm text-muted-foreground">
+              {"{{name}}"} becomes each person’s name. This sample uses Alex Rivera.
+            </p>
+            <iframe
+              title="Email preview"
+              sandbox=""
+              srcDoc={composeMessageHtml(preview.subject, preview.body)}
+              className="h-[720px] w-full rounded-xl border bg-[#efeafc]"
+            />
           </div>
           <div className="flex flex-wrap gap-2">
             <Button

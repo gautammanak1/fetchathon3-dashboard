@@ -1,12 +1,43 @@
 import { NextResponse } from "next/server"
 
 import { getAdminSession } from "@/lib/auth"
-import { fillTemplate } from "@/lib/compose-mail"
+import { fillTemplate, readableName } from "@/lib/compose-mail"
+import { mailVenue } from "@/lib/event-venues"
+import { loadRoster } from "@/lib/roster"
+import { rsvpConfirmUrl } from "@/lib/rsvp-confirm"
 import { resolveRecipients, sendComposedMail, type ComposeAudience } from "@/lib/send-compose"
 import { isSmtpConfigured } from "@/lib/smtp"
+import { teamKey } from "@/lib/team-qr-store"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
+
+async function testRecipient(email: string) {
+  try {
+    const roster = await loadRoster()
+    const row = roster.registrations.find(
+      (item) => item.email.trim().toLowerCase() === email.toLowerCase(),
+    )
+    if (row) {
+      return {
+        email,
+        name: readableName(row.name, email),
+        team: row.team_id_display || row.team_id || "",
+        venue: mailVenue(row.city, row.metro).label,
+        confirm_url: rsvpConfirmUrl(teamKey(row)),
+      }
+    }
+  } catch (error) {
+    console.error("test mail name lookup failed", error)
+  }
+  return {
+    email,
+    name: readableName("", email),
+    team: "",
+    venue: "",
+    confirm_url: "",
+  }
+}
 
 function audienceFrom(body: {
   audience?: string
@@ -57,14 +88,7 @@ export async function POST(request: Request) {
 
   try {
     const recipients = body?.test
-      ? [
-          {
-            email: session.email,
-            name: "there",
-            team: "fetchathon3.0-1",
-            venue: "Bengaluru",
-          },
-        ]
+      ? [await testRecipient(session.email)]
       : await resolveRecipients(audience!)
     if (recipients.length === 0) {
       return NextResponse.json({ error: "No valid email addresses to send to" }, { status: 400 })

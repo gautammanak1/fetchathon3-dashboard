@@ -1,4 +1,5 @@
 import {
+  DISCORD_NOTE,
   DOCS_URL,
   EVENT_DATE,
   EXAMPLES_URL,
@@ -22,17 +23,21 @@ export function rsvpPlainMessage(input: {
   const lines = [
     input.greeting,
     "",
-    "You are selected for Fetch-A-Thon 3.0. Please start building your project.",
-    `The hackathon is on ${EVENT_DATE}.`,
+    "Congratulations! You're shortlisted for Fetch-A-Thon 3.0. Please confirm your RSVP below.",
+    `Saturday, ${EVENT_DATE}`,
     "",
     input.confirmUrl
-      ? `Confirm your seat: ${input.confirmUrl}`
-      : "Confirm your seat: {{confirm_url}}",
+      ? `Absolutely, I'm in: ${input.confirmUrl}`
+      : "Absolutely, I'm in: {{confirm_url}}",
+    input.confirmUrl
+      ? `Next time, maybe: ${input.confirmUrl}${input.confirmUrl.includes("?") ? "&" : "?"}later=1`
+      : "Next time, maybe: {{confirm_url}}?later=1",
     "",
     place,
     input.venue.note === "This is your location." ? "" : input.venue.note,
     "",
-    `Join Discord and stay with your team there: ${input.discordUrl}`,
+    DISCORD_NOTE,
+    input.discordUrl,
     "",
     "Exclusive offer",
     "Unlock one month free access to ASI:One Pro and Agentverse Premium.",
@@ -49,9 +54,10 @@ export function rsvpPlainMessage(input: {
     "",
     ...(input.teamLines || []),
     "",
-    "For any queries, email innovationlab@fetch.ai.",
+    "Regards,",
+    "Fetch.ai Innovation Lab",
     "",
-    "Fetch-A-Thon / Fetch.ai Innovation Lab",
+    "Thank you",
   ]
   return lines.filter((line, index, all) => !(line === "" && all[index - 1] === "")).join("\n")
 }
@@ -72,7 +78,7 @@ export function defaultRsvpTemplates() {
       name: item.name,
       subject: `You're selected for Fetch-A-Thon 3.0 — ${venue.label}`,
       body: rsvpPlainMessage({
-        greeting: "Hi {{name}}!",
+        greeting: "Hi {{name}} 🎉",
         venue,
         confirmUrl: "",
         discordUrl:

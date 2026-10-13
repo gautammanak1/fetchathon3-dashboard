@@ -6,10 +6,13 @@ export const dynamic = "force-dynamic"
 
 export default async function Page({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>
+  searchParams: Promise<{ later?: string }>
 }) {
   const { token } = await params
+  const { later } = await searchParams
   const team = await findRsvpConfirmTeam(token)
   const venue = team ? mailVenue(team.members[0]?.city || "", team.members[0]?.metro || "") : null
 
@@ -21,6 +24,7 @@ export default async function Page({
           teamId={team.members[0]?.team_id_display || team.key}
           venue={venue.label}
           note={venue.note}
+          later={later === "1"}
           already={team.members.every((member) => member.rsvp_status === "confirmed")}
           members={team.members.map((member) => ({
             name: member.name || "Untitled",

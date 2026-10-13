@@ -1,4 +1,4 @@
-import { fillTemplate, parseEmailList, type MailFields } from "@/lib/compose-mail"
+import { fillTemplate, parseEmailList, readableName, type MailFields } from "@/lib/compose-mail"
 import { composeMessageHtml, composeMessageText } from "@/lib/email-templates"
 import { mailVenue } from "@/lib/event-venues"
 import { formatVenue } from "@/lib/fields"
@@ -23,7 +23,7 @@ function personFrom(row: Registration): Recipient | null {
   const place = mailVenue(row.city, row.metro)
   return {
     email,
-    name: row.name.trim() || "there",
+    name: readableName(row.name, email),
     team: row.team_id_display || row.team_id || "",
     venue: place.label,
     confirm_url: rsvpConfirmUrl(teamKey(row)),
@@ -56,7 +56,7 @@ export async function resolveRecipients(audience: ComposeAudience) {
       (email) =>
         byEmail.get(email) || {
           email,
-          name: email.split("@")[0] || "there",
+          name: readableName("", email),
           team: "",
           venue: "",
           confirm_url: "",
