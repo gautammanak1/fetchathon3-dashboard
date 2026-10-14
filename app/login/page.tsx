@@ -56,7 +56,7 @@ export default function LoginPage() {
       <div className="absolute right-4 top-4">
         <ModeToggle />
       </div>
-      <Card className="w-full max-w-sm">
+      <Card className="rise w-full max-w-sm">
         <CardHeader className="gap-4">
           <FetchathonLogo />
           <div>

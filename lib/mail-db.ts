@@ -1,4 +1,5 @@
 import { getActionMap, replaceActionEntries } from "@/lib/actions-store"
+import { db, isoTime } from "@/lib/db"
 import { readJsonFile, writeJsonFile } from "@/lib/json-store"
 import type { ActionRecord, QrStatus, Registration, RsvpStatus } from "@/lib/types"
 
@@ -163,6 +164,69 @@ async function readBlobStore(): Promise<Store | null> {
   }
 }
 
+async function readSupabase(): Promise<Store> {
+  const sql = db()
+  if (!sql) throw new Error("Supabase is not configured")
+  const rows = await sql<Array<Record<string, unknown>>>`select * from mail_people`
+  const store: Store = {}
+  for (const row of rows) {
+    const id = String(row.notion_id || "")
+    const person = normalize({
+      ...row,
+      registration_mail_sent_at: isoTime(row.registration_mail_sent_at),
+      rsvp_sent_at: isoTime(row.rsvp_sent_at),
+      qr_generated_at: isoTime(row.qr_generated_at),
+      qr_sent_at: isoTime(row.qr_sent_at),
+    })
+    if (id && person) store[id] = person
+  }
+  return store
+}
+
+async function writeSupabase(store: Store) {
+  const sql = db()
+  if (!sql) return
+  const rows = Object.entries(store).map(([notion_id, person]) => ({
+    notion_id,
+    email: person.email || "",
+    name: person.name || "",
+    team_id: person.team_id || "",
+    registration_mail_status: person.registration_mail_status,
+    registration_mail_sent_at: person.registration_mail_sent_at,
+    registration_mail_count: person.registration_mail_count,
+    rsvp_status: person.rsvp_status,
+    rsvp_sent_at: person.rsvp_sent_at,
+    rsvp_count: person.rsvp_count,
+    qr_status: person.qr_status,
+    qr_token: person.qr_token,
+    qr_generated_at: person.qr_generated_at,
+    qr_sent_at: person.qr_sent_at,
+    qr_count: person.qr_count,
+  }))
+  for (let index = 0; index < rows.length; index += 100) {
+    const chunk = rows.slice(index, index + 100)
+    await sql`
+      insert into mail_people ${sql(chunk)}
+      on conflict (notion_id) do update set
+        email = excluded.email,
+        name = excluded.name,
+        team_id = excluded.team_id,
+        registration_mail_status = excluded.registration_mail_status,
+        registration_mail_sent_at = excluded.registration_mail_sent_at,
+        registration_mail_count = excluded.registration_mail_count,
+        rsvp_status = excluded.rsvp_status,
+        rsvp_sent_at = excluded.rsvp_sent_at,
+        rsvp_count = excluded.rsvp_count,
+        qr_status = excluded.qr_status,
+        qr_token = excluded.qr_token,
+        qr_generated_at = excluded.qr_generated_at,
+        qr_sent_at = excluded.qr_sent_at,
+        qr_count = excluded.qr_count,
+        updated_at = now()
+    `
+  }
+}
+
 async function writeBlobStore(store: Store) {
   if (!blobEnabled()) return
   try {
@@ -196,6 +260,19 @@ async function loadStore(): Promise<Store> {
   if (memory) return memory
   if (loadPromise) return loadPromise
   loadPromise = (async () => {
+    let remoteOk = false
+    if (db()) {
+      try {
+        const remote = await readSupabase()
+        remoteOk = true
+        if (Object.keys(remote).length) {
+          memory = remote
+          return memory
+        }
+      } catch (error) {
+        console.error("mail-db supabase read failed", error)
+      }
+    }
     const overlay = await getActionMap()
     const fromOverlay: Store = {}
     for (const [id, action] of Object.entries(overlay)) {
@@ -208,7 +285,9 @@ async function loadStore(): Promise<Store> {
       if (person) fromFile[id] = person
     }
     const fromBlob = await readBlobStore()
-    memory = mergeStores(fromOverlay, fromFile, fromBlob)
+    const merged = mergeStores(fromOverlay, fromFile, fromBlob)
+    if (remoteOk && Object.keys(merged).length) await writeSupabase(merged)
+    memory = merged
     return memory
   })()
   try {
@@ -219,6 +298,11 @@ async function loadStore(): Promise<Store> {
 }
 
 async function saveStore(store: Store) {
+  if (db()) {
+    await writeSupabase(store)
+    memory = store
+    return
+  }
   memory = store
   await writeJsonFile(STORE_NAME, store)
   await writeBlobStore(store)

@@ -30,7 +30,7 @@ export function NavMain({
             const active =
               item.url === "/dashboard"
                 ? pathname === "/dashboard"
-                : pathname.startsWith(item.url)
+                : pathname === item.url || pathname.startsWith(`${item.url}/`)
             return (
               <SidebarMenuItem key={item.title}>
                 <SidebarMenuButton tooltip={item.title} isActive={active} asChild>

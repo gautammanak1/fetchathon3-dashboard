@@ -58,7 +58,7 @@ export function OverviewCards({
         <Card key={item.label} className="@container/card">
           <CardHeader>
             <CardDescription>{item.label}</CardDescription>
-            <CardTitle className="font-mono text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+            <CardTitle className="font-heading text-3xl font-semibold tracking-tight tabular-nums">
               {item.value}
             </CardTitle>
           </CardHeader>

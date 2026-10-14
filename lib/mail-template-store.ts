@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto"
 
+import { db, isoTime } from "@/lib/db"
 import { readJsonFile, writeJsonFile } from "@/lib/json-store"
 import { defaultRsvpTemplates } from "@/lib/rsvp-templates"
 
@@ -84,6 +85,42 @@ async function readBlobStore(): Promise<Store | null> {
   }
 }
 
+async function readSupabase(): Promise<Store> {
+  const sql = db()
+  if (!sql) throw new Error("Supabase is not configured")
+  const rows = await sql<Array<Record<string, unknown>>>`select * from mail_templates`
+  const store: Store = {}
+  for (const row of rows) {
+    const template = normalize({
+      ...row,
+      updated_at: isoTime(row.updated_at),
+    })
+    if (template) store[template.id] = newer(store[template.id], template)
+  }
+  return store
+}
+
+async function writeSupabase(store: Store) {
+  const sql = db()
+  if (!sql) return
+  const rows = Object.values(store)
+  if (!rows.length) return
+  await sql`
+    insert into mail_templates ${sql(rows)}
+    on conflict (id) do update set
+      name = excluded.name,
+      subject = excluded.subject,
+      body = excluded.body,
+      updated_at = excluded.updated_at
+  `
+}
+
+async function deleteSupabase(id: string) {
+  const sql = db()
+  if (!sql) return
+  await sql`delete from mail_templates where id = ${id}`
+}
+
 async function writeBlobStore(store: Store) {
   if (!blobEnabled()) return
   try {
@@ -113,6 +150,19 @@ function enqueue<T>(task: () => Promise<T>) {
 
 async function loadStore() {
   if (memory) return memory
+  let remoteOk = false
+  if (db()) {
+    try {
+      const remote = await readSupabase()
+      remoteOk = true
+      if (Object.keys(remote).length) {
+        memory = remote
+        return memory
+      }
+    } catch (error) {
+      console.error("mail template supabase read failed", error)
+    }
+  }
   const file = await readJsonFile<Record<string, unknown>>(STORE_NAME, {})
   const fromFile: Store = {}
   for (const value of Object.values(file)) {
@@ -124,11 +174,17 @@ async function loadStore() {
   for (const [id, template] of Object.entries(fromBlob || {})) {
     merged[id] = newer(merged[id], template)
   }
+  if (remoteOk && Object.keys(merged).length) await writeSupabase(merged)
   memory = merged
   return memory
 }
 
 async function saveStore(store: Store) {
+  if (db()) {
+    await writeSupabase(store)
+    memory = store
+    return
+  }
   memory = store
   await writeJsonFile(STORE_NAME, store)
   await writeBlobStore(store)
@@ -199,6 +255,7 @@ export async function deleteMailTemplate(id: string) {
     const store = { ...(await loadStore()) }
     if (!store[id]) return false
     delete store[id]
+    if (db()) await deleteSupabase(id)
     await saveStore(store)
     return true
   })

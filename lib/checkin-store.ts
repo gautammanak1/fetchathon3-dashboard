@@ -1,3 +1,4 @@
+import { db, isoTime } from "@/lib/db"
 import { readJsonFile, writeJsonFile } from "@/lib/json-store"
 
 const STORE_NAME = "checkin.json"
@@ -100,6 +101,46 @@ async function readBlobStore(): Promise<Store | null> {
   }
 }
 
+async function readSupabase(): Promise<Store> {
+  const sql = db()
+  if (!sql) throw new Error("Supabase is not configured")
+  const rows = await sql<Array<Record<string, unknown>>>`select * from checkins`
+  const store: Store = {}
+  for (const row of rows) {
+    const record = normalize({
+      ...row,
+      checked_in_at: isoTime(row.checked_in_at),
+    })
+    if (record) store[record.registration_id] = record
+  }
+  return store
+}
+
+async function writeSupabase(store: Store) {
+  const sql = db()
+  if (!sql) return
+  const rows = Object.values(store)
+  if (!rows.length) return
+  await sql`
+    insert into checkins ${sql(rows)}
+    on conflict (registration_id) do update set
+      name = excluded.name,
+      email = excluded.email,
+      role = excluded.role,
+      organization = excluded.organization,
+      team_key = excluded.team_key,
+      team_id_display = excluded.team_id_display,
+      venue = excluded.venue,
+      checked_in_at = excluded.checked_in_at
+  `
+}
+
+async function deleteSupabase(registrationId: string) {
+  const sql = db()
+  if (!sql) return
+  await sql`delete from checkins where registration_id = ${registrationId}`
+}
+
 async function writeBlobStore(store: Store) {
   if (!blobEnabled()) return
   try {
@@ -129,17 +170,37 @@ function enqueue<T>(task: () => Promise<T>) {
 
 async function loadStore() {
   if (memory) return memory
+  let remoteOk = false
+  if (db()) {
+    try {
+      const remote = await readSupabase()
+      remoteOk = true
+      if (Object.keys(remote).length) {
+        memory = remote
+        return memory
+      }
+    } catch (error) {
+      console.error("check-in supabase read failed", error)
+    }
+  }
   const file = await readJsonFile<Record<string, unknown>>(STORE_NAME, {})
   const fromFile: Store = {}
   for (const [id, value] of Object.entries(file)) {
     const record = normalize({ ...(value as object), registration_id: id })
     if (record) fromFile[id] = record
   }
-  memory = mergeStores(fromFile, await readBlobStore())
+  const merged = mergeStores(fromFile, await readBlobStore())
+  if (remoteOk && Object.keys(merged).length) await writeSupabase(merged)
+  memory = merged
   return memory
 }
 
 async function saveStore(store: Store) {
+  if (db()) {
+    await writeSupabase(store)
+    memory = store
+    return
+  }
   memory = store
   await writeJsonFile(STORE_NAME, store)
   await writeBlobStore(store)
@@ -177,6 +238,7 @@ export async function removeCheckIn(registrationId: string) {
     const current = store[registrationId]
     if (!current) return null
     delete store[registrationId]
+    if (db()) await deleteSupabase(registrationId)
     await saveStore(store)
     return current
   })

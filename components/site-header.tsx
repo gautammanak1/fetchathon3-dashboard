@@ -16,8 +16,10 @@ export function SiteHeader({
           orientation="vertical"
           className="mx-2 data-[orientation=vertical]:h-4"
         />
-        <h1 className="text-base font-medium">{title}</h1>
-        <div className="ml-auto flex items-center gap-2">{children}</div>
+        <h1 className="shrink-0 font-heading text-lg font-medium tracking-tight whitespace-nowrap">
+          {title}
+        </h1>
+        <div className="ml-auto flex min-w-0 items-center gap-2">{children}</div>
       </div>
     </header>
   )
