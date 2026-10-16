@@ -155,8 +155,23 @@ export function RegistrationsPage() {
 }
 
 export function TeamsPage() {
-  const { data, loading, error } = useRoster()
+  const { data, loading, error, runAction } = useRoster()
+  const { isAdmin } = useAuth()
   const [filters, setFilters] = React.useState(EMPTY_FILTERS)
+  const [busy, setBusy] = React.useState(false)
+
+  const act = async (
+    url: string,
+    body: Record<string, unknown>,
+    success: string,
+  ) => {
+    setBusy(true)
+    try {
+      return await runAction(url, body, success)
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const teams = React.useMemo(() => {
     if (!data) return []
@@ -183,7 +198,25 @@ export function TeamsPage() {
             onChange={setFilters}
             showActions
           />
-          <TeamBoard teams={teams} />
+          <TeamBoard
+            teams={teams}
+            canManage={isAdmin}
+            busy={busy}
+            onRsvp={(ids, force) =>
+              act(
+                "/api/actions/rsvp",
+                { ids, force },
+                force ? "RSVP resent for this team" : "RSVP sent for this team",
+              )
+            }
+            onSendQr={(ids, force) =>
+              act(
+                "/api/actions/qr",
+                { ids, mode: "send", force },
+                force ? "Team QR resent" : "Team QR sent",
+              )
+            }
+          />
         </>
       ) : null}
     </DashboardShell>

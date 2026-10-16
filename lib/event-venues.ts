@@ -57,14 +57,11 @@ export function mailVenue(city: string, metro = ""): MailVenue {
     text.includes("gurgaon") ||
     text.includes("masters")
   ) {
-    const fromNoida = text.includes("noida") || text.includes("amity")
     return {
-      key: fromNoida ? "noida" : "gurugram",
+      key: "gurugram",
       label: "Masters' Union Gurugram",
       mapUrl: MAPS.gurugram,
-      note: fromNoida
-        ? "You registered for Noida. This is your location: Masters' Union Gurugram."
-        : "This is your location.",
+      note: "This is your location.",
     }
   }
   if (text.includes("bengaluru") || text.includes("bangalore")) {

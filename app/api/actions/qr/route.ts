@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { getAdminSession } from "@/lib/auth"
+import { mailVenue } from "@/lib/event-venues"
 import { mailMeta, persistMailRecords } from "@/lib/mail-db"
 import { teamPassUrl } from "@/lib/pass-url"
 import { requireAdmin } from "@/lib/require-admin"
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
     record = {
       team_key: key,
       team_id_display: row.team_id_display || key,
-      venue: row.city,
+      venue: mailVenue(row.city, row.metro).label,
       token: row.qr_token || "",
       generated_at: row.qr_generated_at || new Date().toISOString(),
       sent_at: row.qr_sent_at,
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
       record = await ensureTeamQr({
         team_key: key,
         team_id_display: row.team_id_display || key,
-        venue: row.city,
+        venue: mailVenue(row.city, row.metro).label,
       })
     }
   }
@@ -59,7 +60,7 @@ export async function GET(request: Request) {
     record = await ensureTeamQr({
       team_key: key,
       team_id_display: row.team_id_display || key,
-      venue: row.city,
+      venue: mailVenue(row.city, row.metro).label,
     })
     await persistMailRecords([mailMeta(row)], {
       qr_status: "generated",
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
       const record = await ensureTeamQr({
         team_key: group.key,
         team_id_display: group.primary.team_id_display || group.key,
-        venue: group.primary.city,
+        venue: mailVenue(group.primary.city, group.primary.metro).label,
       })
       teams += 1
       const memberIds = group.members.map((member) => member.id)
@@ -161,7 +162,7 @@ export async function POST(request: Request) {
         const record = await ensureTeamQr({
           team_key: group.key,
           team_id_display: group.primary.team_id_display || group.key,
-          venue: group.primary.city || "",
+          venue: mailVenue(group.primary.city, group.primary.metro).label,
         })
         await persistMailRecords(group.members.map(mailMeta), {
           qr_status: "generated",

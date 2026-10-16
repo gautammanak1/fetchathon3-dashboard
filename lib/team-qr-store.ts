@@ -96,7 +96,15 @@ export async function ensureTeamQr(input: {
 }) {
   const store = await readStore()
   const existing = store[input.team_key]
-  if (existing) return existing
+  if (existing) {
+    if (input.venue && existing.venue !== input.venue) {
+      const next = { ...existing, venue: input.venue }
+      store[input.team_key] = next
+      await writeJsonFile(STORE_NAME, store)
+      return next
+    }
+    return existing
+  }
   const record = derivedRecord(input)
   store[input.team_key] = record
   await writeJsonFile(STORE_NAME, store)
