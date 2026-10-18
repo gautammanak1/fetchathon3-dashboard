@@ -30,38 +30,26 @@ function teamKey(team: Team) {
   return team.team_id || team.lead_email || team.lead_name
 }
 
-function statusLabel(kind: "rsvp" | "qr", value: string) {
-  if (kind === "rsvp") {
-    if (value === "confirmed") return "Confirmed"
-    if (value === "sent") return "Sent"
-    return "Not sent"
-  }
-  if (value === "sent") return "Sent"
-  if (value === "generated") return "Generated"
-  return "Not sent"
+function peopleOf(team: Team) {
+  return [...team.members].sort((a, b) => {
+    const aLead = a.role.toLowerCase() === "lead" ? 0 : 1
+    const bLead = b.role.toLowerCase() === "lead" ? 0 : 1
+    if (aLead !== bLead) return aLead - bLead
+    return a.name.localeCompare(b.name)
+  })
 }
 
-const PERSON_FIELDS: Array<[keyof Registration, string]> = [
-  ["email", "Email"],
-  ["phone", "Phone"],
-  ["organization", "Organization"],
-  ["participation", "Participation"],
-  ["are_you", "Are you"],
-  ["city", "Location"],
-  ["metro", "City"],
-  ["experience", "Experience"],
-  ["address", "Address"],
-  ["github", "GitHub"],
-  ["linkedin", "LinkedIn"],
-]
-
 function linkFor(label: string, value: string) {
-  if (label.toLowerCase().includes("email") && value.includes("@")) return `mailto:${value}`
+  if (label === "Email" && value.includes("@")) return `mailto:${value}`
   if (label === "Phone") {
     const digits = value.replace(/[^\d+]/g, "")
     return digits ? `tel:${digits}` : ""
   }
   if (/^https?:\/\//i.test(value)) return value
+  if (label === "GitHub" && value && !value.includes(" ")) {
+    return value.startsWith("http") ? value : `https://github.com/${value.replace(/^@/, "")}`
+  }
+  if (label === "LinkedIn" && value.startsWith("http")) return value
   return ""
 }
 
@@ -72,24 +60,94 @@ function when(value: string | null) {
   return time.toLocaleString()
 }
 
-function Fact({ label, value, href }: { label: string; value: string; href?: string }) {
+function initial(name: string) {
+  const letter = name.trim().charAt(0)
+  return letter ? letter.toUpperCase() : "?"
+}
+
+const PROFILE_FIELDS: Array<[keyof Registration, string]> = [
+  ["email", "Email"],
+  ["phone", "Phone"],
+  ["organization", "College or company"],
+  ["participation", "Participation"],
+  ["are_you", "Are you"],
+  ["city", "Chosen location"],
+  ["metro", "City"],
+  ["experience", "Experience"],
+  ["address", "Address"],
+  ["github", "GitHub"],
+  ["linkedin", "LinkedIn"],
+]
+
+function Fact({ label, value }: { label: string; value: string }) {
   const text = value.trim()
-  if (!text) return null
-  const target = href || linkFor(label, text)
+  const shown = text || "Not added"
+  const target = text ? linkFor(label, text) : ""
   return (
-    <div className="grid gap-0.5">
+    <div className="grid min-w-0 gap-0.5">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="break-all text-sm">
+      <dd className={`text-sm break-words ${text ? "" : "text-muted-foreground"}`}>
         {target ? (
-          <a href={target} target={target.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="underline">
-            {text}
+          <a
+            href={target}
+            target={target.startsWith("http") ? "_blank" : undefined}
+            rel="noreferrer"
+            className="underline"
+          >
+            {shown}
           </a>
         ) : (
-          text
+          shown
         )}
       </dd>
     </div>
   )
+}
+
+function Pill({
+  children,
+  tone,
+}: {
+  children: React.ReactNode
+  tone: "ok" | "wait" | "muted" | "warn"
+}) {
+  const toneClass = {
+    ok: "bg-emerald-500/15 text-emerald-900 dark:text-emerald-100",
+    wait: "bg-amber-500/20 text-amber-950 dark:text-amber-100",
+    warn: "bg-rose-500/15 text-rose-900 dark:text-rose-100",
+    muted: "bg-muted text-muted-foreground",
+  }[tone]
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-xs ${toneClass}`}>{children}</span>
+  )
+}
+
+function rsvpPill(member: Registration) {
+  if (member.rsvp_status === "confirmed") {
+    return <Pill tone="ok">Confirmed — they clicked I&apos;m in</Pill>
+  }
+  if (member.rsvp_status === "sent") {
+    return <Pill tone="wait">Invite mailed — waiting for I&apos;m in</Pill>
+  }
+  return <Pill tone="muted">RSVP not mailed</Pill>
+}
+
+function rejectPill(member: Registration) {
+  if (member.reject_status === "sent") return <Pill tone="warn">Reject mailed</Pill>
+  return <Pill tone="muted">No reject mail</Pill>
+}
+
+function qrPill(member: Registration) {
+  if (member.qr_status === "sent") return <Pill tone="ok">QR mailed</Pill>
+  if (member.qr_status === "generated") return <Pill tone="wait">QR ready, not mailed</Pill>
+  return <Pill tone="muted">QR not sent</Pill>
+}
+
+function registrationPill(member: Registration) {
+  if (member.registration_mail_status === "sent") {
+    return <Pill tone="ok">Registration mail sent</Pill>
+  }
+  return <Pill tone="muted">Registration mail not sent</Pill>
 }
 
 export function TeamBoard({
@@ -97,12 +155,14 @@ export function TeamBoard({
   canManage = false,
   busy = false,
   onRsvp,
+  onReject,
   onSendQr,
 }: {
   teams: Team[]
   canManage?: boolean
   busy?: boolean
   onRsvp?: (ids: string[], force?: boolean) => void
+  onReject?: (ids: string[], force?: boolean) => void
   onSendQr?: (ids: string[], force?: boolean) => void
 }) {
   const [openId, setOpenId] = React.useState<string | null>(null)
@@ -120,9 +180,9 @@ export function TeamBoard({
     <div className="font-normal font-sans antialiased">
       <div className="grid gap-4 px-4 md:grid-cols-2 xl:grid-cols-3 lg:px-6">
         {teams.map((team) => {
-          const expected = team.expected_size || team.registered_count || 1
-          const width = Math.min(100, Math.round((team.registered_count / expected) * 100))
+          const people = peopleOf(team)
           const venue = mailVenue(team.location, team.metro)
+          const confirmed = people.filter((person) => person.rsvp_status === "confirmed").length
           return (
             <Card
               key={teamKey(team)}
@@ -140,39 +200,29 @@ export function TeamBoard({
               <CardHeader className="gap-2">
                 <div className="flex items-start justify-between gap-2">
                   <CardTitle className="font-normal font-sans text-base">
-                    {team.team_id_display || "No team id"}
+                    {people.length} {people.length === 1 ? "person" : "people"}
                   </CardTitle>
-                  <Badge variant="outline">{team.team_status.split(" ")[0]}</Badge>
+                  <Badge variant="outline">{team.team_id_display || "No team id"}</Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  {team.lead_name} · {venue.label}
+                  {venue.label}
+                  {confirmed ? ` · ${confirmed} confirmed` : ""}
                 </p>
               </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-                    <span>
-                      {team.registered_count}
-                      {team.expected_size ? ` / ${team.expected_size}` : ""} registered
-                    </span>
-                    <span>
-                      {team.seats_remaining === null
-                        ? "size pending"
-                        : `${team.seats_remaining} seats left`}
-                    </span>
-                  </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full bg-foreground" style={{ width: `${width}%` }} />
-                  </div>
-                </div>
-                <ul className="space-y-2 text-sm">
-                  {team.members.map((member) => (
-                    <li key={member.id} className="flex items-center justify-between gap-2">
-                      <span>
-                        {member.name}
-                        <span className="ml-2 text-xs text-muted-foreground">{member.role}</span>
+              <CardContent>
+                <ul className="grid gap-2">
+                  {people.map((person) => (
+                    <li key={person.id} className="flex items-center gap-3">
+                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs">
+                        {initial(person.name)}
                       </span>
-                      <Badge variant="outline">{member.status || "—"}</Badge>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm">{person.name || "Untitled"}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {person.role || "Role not added"}
+                          {person.organization ? ` · ${person.organization}` : ""}
+                        </span>
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -187,6 +237,7 @@ export function TeamBoard({
         busy={busy}
         onClose={() => setOpenId(null)}
         onRsvp={onRsvp}
+        onReject={onReject}
         onSendQr={onSendQr}
       />
     </div>
@@ -199,6 +250,7 @@ function TeamSheet({
   busy,
   onClose,
   onRsvp,
+  onReject,
   onSendQr,
 }: {
   team: Team | null
@@ -206,82 +258,63 @@ function TeamSheet({
   busy: boolean
   onClose: () => void
   onRsvp?: (ids: string[], force?: boolean) => void
+  onReject?: (ids: string[], force?: boolean) => void
   onSendQr?: (ids: string[], force?: boolean) => void
 }) {
   const venue = team ? mailVenue(team.location, team.metro) : null
-  const ids = team?.members.map((member) => member.id) || []
-  const rsvpSent = Boolean(team?.members.some((member) => member.rsvp_status !== "none"))
-  const qrSent = Boolean(team?.members.some((member) => member.qr_status === "sent"))
+  const people = team ? peopleOf(team) : []
+  const ids = people.map((member) => member.id)
+  const rsvpSent = people.some((member) => member.rsvp_status !== "none")
+  const rejectSent = people.some((member) => member.reject_status === "sent")
+  const qrSent = people.some((member) => member.qr_status === "sent")
   const registeredAs =
     team && venue && team.location && team.location !== venue.label ? team.location : ""
 
   return (
     <Sheet open={Boolean(team)} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full overflow-y-auto font-normal font-sans antialiased sm:max-w-xl">
+      <SheetContent className="w-full overflow-y-auto font-normal font-sans antialiased data-[side=right]:sm:max-w-3xl">
         {team && venue ? (
           <>
             <SheetHeader>
               <SheetTitle className="font-normal font-sans text-lg">
-                {team.team_id_display || "Team"}
+                {people.length} {people.length === 1 ? "person" : "people"} on this team
               </SheetTitle>
               <SheetDescription>
-                {team.lead_name} · {team.members.length}{" "}
-                {team.members.length === 1 ? "person" : "people"}
+                {team.team_id_display || "No team id"} · {venue.label} · {team.team_status}
               </SheetDescription>
             </SheetHeader>
             <div className="grid gap-5 px-4 pb-6">
-              <section className="rounded-2xl border bg-card p-4">
-                <p className="text-sm text-muted-foreground">Team</p>
-                <dl className="mt-3 grid gap-3">
-                  <Fact label="Team ID" value={team.team_id_display} />
-                  <Fact label="Status" value={team.team_status} />
-                  <Fact label="Lead" value={team.lead_name} />
-                  <Fact label="Lead email" value={team.lead_email} />
-                  <Fact
-                    label="Registered"
-                    value={
-                      team.expected_size
-                        ? `${team.registered_count} / ${team.expected_size}`
-                        : String(team.registered_count)
-                    }
-                  />
-                  <Fact
-                    label="Seats left"
-                    value={team.seats_remaining === null ? "Size pending" : String(team.seats_remaining)}
-                  />
-                  <Fact label="Chosen location" value={registeredAs || team.location || venue.label} />
-                  <Fact label="RSVP location" value={venue.label} />
-                </dl>
-                {registeredAs ? (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    They chose {registeredAs}. The mail sends {venue.label}.
-                  </p>
-                ) : venue.note ? (
-                  <p className="mt-3 text-sm text-muted-foreground">{venue.note}</p>
-                ) : null}
+              <section className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-2">
+                <Fact label="Lead" value={team.lead_name} />
+                <Fact label="Lead email" value={team.lead_email} />
+                <Fact
+                  label="Seats"
+                  value={
+                    team.expected_size
+                      ? `${team.registered_count} of ${team.expected_size} registered`
+                      : `${team.registered_count} registered`
+                  }
+                />
+                <Fact label="They chose" value={registeredAs || team.location || venue.label} />
+                <Fact label="Mail sends" value={venue.label} />
+                {venue.mapUrl ? null : (
+                  <Fact label="Map" value={venue.note || "No map for this location"} />
+                )}
                 {venue.mapUrl ? (
-                  <a
-                    href={venue.mapUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-2 inline-block text-sm underline"
-                  >
-                    Open map
+                  <a href={venue.mapUrl} target="_blank" rel="noreferrer" className="text-sm underline">
+                    Open the location map
                   </a>
                 ) : null}
               </section>
 
               <section className="grid gap-3">
-                <p className="text-sm text-muted-foreground">People</p>
-                <ul className="grid gap-3">
-                  {team.members.map((member) => (
-                    <MemberRow key={member.id} member={member} />
-                  ))}
-                </ul>
+                {people.map((member, index) => (
+                  <PersonProfile key={member.id} member={member} index={index + 1} total={people.length} />
+                ))}
               </section>
 
               {canManage ? (
-                <div className="grid gap-2">
+                <div className="grid gap-2 sm:grid-cols-3">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button disabled={busy || !onRsvp}>
@@ -294,14 +327,39 @@ function TeamSheet({
                           {rsvpSent ? "Resend this team's RSVP?" : "Send this team's RSVP?"}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          One email goes to {team.team_id_display || "this team"} using the RSVP
-                          template. Location in the mail: {venue.label}. Teammates are CC'd.
+                          One email goes to every person on {team.team_id_display || "this team"}.
+                          Location in the mail: {venue.label}. Teammates are CC&apos;d. Confirmed
+                          means they clicked I&apos;m in.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
                         <AlertDialogAction onClick={() => onRsvp?.(ids, rsvpSent)}>
                           {rsvpSent ? "Send again" : "Send RSVP"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" disabled={busy || !onReject}>
+                        {rejectSent ? "Send reject again" : "Send reject"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          {rejectSent ? "Resend the reject mail?" : "Send the reject mail?"}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This thanks everyone on {team.team_id_display || "this team"} and says we
+                          hope to see them at Fetch-A-Thon 4.0. RSVP status stays as it is.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => onReject?.(ids, rejectSent)}>
+                          {rejectSent ? "Send again" : "Send reject"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -318,7 +376,7 @@ function TeamSheet({
                           {qrSent ? "Resend the team QR?" : "Send the team QR?"}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          This generates the venue QR if needed and emails{" "}
+                          This generates the venue QR if needed and emails everyone on{" "}
                           {team.team_id_display || "this team"}. The pass says {venue.label}.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
@@ -340,41 +398,47 @@ function TeamSheet({
   )
 }
 
-function MemberRow({ member }: { member: Registration }) {
-  const registrationSent = when(member.registration_mail_sent_at)
-  const rsvpSent = when(member.rsvp_sent_at)
-  const qrSent = when(member.qr_sent_at)
+function PersonProfile({
+  member,
+  index,
+  total,
+}: {
+  member: Registration
+  index: number
+  total: number
+}) {
   return (
-    <li className="grid gap-3 rounded-2xl border px-3 py-3 text-sm">
-      <div className="flex items-center justify-between gap-2">
-        <span>
-          {member.name || "Untitled"}
-          <span className="ml-2 text-xs text-muted-foreground">{member.role}</span>
+    <article className="grid gap-4 rounded-2xl border bg-card p-4">
+      <div className="flex items-start gap-3">
+        <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-sm">
+          {initial(member.name)}
         </span>
-        <Badge variant="outline">{member.status || "—"}</Badge>
+        <div className="min-w-0 flex-1">
+          <p className="text-base">{member.name || "Untitled"}</p>
+          <p className="text-sm text-muted-foreground">
+            Person {index} of {total}
+            {member.role ? ` · ${member.role}` : ""}
+            {member.status ? ` · ${member.status}` : ""}
+          </p>
+        </div>
       </div>
-      <dl className="grid gap-3">
-        {PERSON_FIELDS.map(([key, label]) => (
+      <div className="flex flex-wrap gap-2">
+        {rsvpPill(member)}
+        {rejectPill(member)}
+        {qrPill(member)}
+        {registrationPill(member)}
+      </div>
+      <dl className="grid gap-3 sm:grid-cols-2">
+        {PROFILE_FIELDS.map(([key, label]) => (
           <Fact key={key} label={label} value={String(member[key] || "")} />
         ))}
-        {member.skills.length > 0 ? <Fact label="Skills" value={member.skills.join(", ")} /> : null}
-        <Fact
-          label="Registration mail"
-          value={
-            member.registration_mail_status === "sent"
-              ? `Sent${registrationSent ? ` · ${registrationSent}` : ""}`
-              : "Not sent"
-          }
-        />
-        <Fact
-          label="RSVP"
-          value={`${statusLabel("rsvp", member.rsvp_status)}${rsvpSent ? ` · ${rsvpSent}` : ""}`}
-        />
-        <Fact
-          label="QR"
-          value={`${statusLabel("qr", member.qr_status)}${qrSent ? ` · ${qrSent}` : ""}`}
-        />
+        <Fact label="Skills" value={member.skills.join(", ")} />
+        {member.rsvp_sent_at ? <Fact label="Invite mailed" value={when(member.rsvp_sent_at)} /> : null}
+        {member.reject_sent_at ? (
+          <Fact label="Reject mailed" value={when(member.reject_sent_at)} />
+        ) : null}
+        {member.qr_sent_at ? <Fact label="QR mailed" value={when(member.qr_sent_at)} /> : null}
       </dl>
-    </li>
+    </article>
   )
 }

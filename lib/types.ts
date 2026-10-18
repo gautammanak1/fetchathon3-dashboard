@@ -37,6 +37,9 @@ export type Registration = {
   qr_generated_at: string | null
   qr_sent_at: string | null
   qr_count: number
+  reject_status: "none" | "sent"
+  reject_sent_at: string | null
+  reject_count: number
   property_types: Record<string, string>
 }
 
@@ -52,6 +55,9 @@ export type ActionRecord = {
   qr_generated_at: string | null
   qr_sent_at: string | null
   qr_count: number
+  reject_status: "none" | "sent"
+  reject_sent_at: string | null
+  reject_count: number
 }
 
 export type Team = {

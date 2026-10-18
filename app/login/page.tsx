@@ -63,7 +63,7 @@ export default function LoginPage() {
             <CardTitle>Admin login</CardTitle>
             <CardDescription>
               Viewers can open the shared dashboard without login. Only admin
-              can send seat confirmation and team venue QR emails.
+              can send RSVP, reject, and team venue QR emails.
             </CardDescription>
           </div>
         </CardHeader>

@@ -6,6 +6,7 @@ import { mailVenue } from "@/lib/event-venues"
 import { loadRoster } from "@/lib/roster"
 import { rsvpConfirmUrl } from "@/lib/rsvp-confirm"
 import { resolveRecipients, sendComposedMail, type ComposeAudience } from "@/lib/send-compose"
+import { sendOfficialMail, sendOfficialTest } from "@/lib/send-official"
 import { isSmtpConfigured } from "@/lib/smtp"
 import { teamKey } from "@/lib/team-qr-store"
 
@@ -70,20 +71,35 @@ export async function POST(request: Request) {
     venue?: string
     emails?: string
     test?: boolean
+    force?: boolean
+    kind?: string
   } | null
+
+  const kind = body?.kind === "rsvp" || body?.kind === "reject" ? body.kind : "custom"
+  const audience = audienceFrom(body || {})
+  if (!body?.test && !audience) {
+    return NextResponse.json({ error: "Choose who should receive this mail" }, { status: 400 })
+  }
+
+  if (kind !== "custom") {
+    try {
+      const result = body?.test
+        ? await sendOfficialTest(kind, session.email)
+        : await sendOfficialMail({ kind, audience: audience!, force: body?.force === true })
+      return NextResponse.json(result, { status: result.ok || result.sent > 0 ? 200 : 502 })
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Could not send mail"
+      return NextResponse.json({ error: messageText }, { status: 500 })
+    }
+  }
 
   const subject = String(body?.subject || "").trim()
   const message = String(body?.body || "").trim()
   if (!subject || !message) {
     return NextResponse.json({ error: "Write a subject and a message" }, { status: 400 })
   }
-  if (subject.length > 180 || message.length > 12000) {
+  if (subject.length > 180 || message.length > 80000) {
     return NextResponse.json({ error: "Subject or message is too long" }, { status: 400 })
-  }
-
-  const audience = audienceFrom(body || {})
-  if (!body?.test && !audience) {
-    return NextResponse.json({ error: "Choose who should receive this mail" }, { status: 400 })
   }
 
   try {

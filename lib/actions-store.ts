@@ -17,6 +17,9 @@ const blank = (): ActionRecord => ({
   qr_generated_at: null,
   qr_sent_at: null,
   qr_count: 0,
+  reject_status: "none",
+  reject_sent_at: null,
+  reject_count: 0,
 })
 
 async function readStore(): Promise<Store> {

@@ -207,6 +207,9 @@ export function registrationFromNotionPage(
   | "qr_token"
   | "qr_generated_at"
   | "qr_sent_at"
+  | "reject_status"
+  | "reject_sent_at"
+  | "reject_count"
   | "qr_count"
 > {
   const props = (page.properties || {}) as Record<string, unknown>

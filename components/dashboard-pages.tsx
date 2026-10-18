@@ -22,6 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useAuth } from "@/hooks/use-auth"
 import { useRoster } from "@/hooks/use-roster"
 import { EMPTY_FILTERS, filterRegistrations } from "@/lib/filters"
+import type { RosterPayload } from "@/lib/types"
 import * as React from "react"
 
 function TestInboxButton({
@@ -134,7 +135,14 @@ export function RegistrationsPage() {
               act(
                 "/api/actions/rsvp",
                 { ids, force },
-                force ? "Seat confirmation emails resent" : "Seat confirmation emails sent",
+                force ? "RSVP emails resent" : "RSVP emails sent",
+              )
+            }
+            onReject={(ids, force) =>
+              act(
+                "/api/actions/reject",
+                { ids, force },
+                force ? "Reject emails resent" : "Reject emails sent",
               )
             }
             onGenerateQr={(ids) =>
@@ -154,8 +162,12 @@ export function RegistrationsPage() {
   )
 }
 
-export function TeamsPage() {
-  const { data, loading, error, runAction } = useRoster()
+export function TeamsPage({
+  initial = null,
+}: {
+  initial?: RosterPayload | null
+}) {
+  const { data, loading, error, runAction } = useRoster(initial)
   const { isAdmin } = useAuth()
   const [filters, setFilters] = React.useState(EMPTY_FILTERS)
   const [busy, setBusy] = React.useState(false)
@@ -178,12 +190,9 @@ export function TeamsPage() {
     const visible = new Set(
       filterRegistrations(data.registrations, filters).map((row) => row.id),
     )
-    return data.teams
-      .map((team) => ({
-        ...team,
-        members: team.members.filter((member) => visible.has(member.id)),
-      }))
-      .filter((team) => team.members.length > 0)
+    return data.teams.filter((team) =>
+      team.members.some((member) => visible.has(member.id)),
+    )
   }, [data, filters])
 
   return (
@@ -207,6 +216,13 @@ export function TeamsPage() {
                 "/api/actions/rsvp",
                 { ids, force },
                 force ? "RSVP resent for this team" : "RSVP sent for this team",
+              )
+            }
+            onReject={(ids, force) =>
+              act(
+                "/api/actions/reject",
+                { ids, force },
+                force ? "Reject mail resent" : "Reject mail sent",
               )
             }
             onSendQr={(ids, force) =>
@@ -274,7 +290,14 @@ export function ActionsPage() {
               act(
                 "/api/actions/rsvp",
                 { ids, force },
-                force ? "Seat confirmation emails resent" : "Seat confirmation emails sent",
+                force ? "RSVP emails resent" : "RSVP emails sent",
+              )
+            }
+            onReject={(ids, force) =>
+              act(
+                "/api/actions/reject",
+                { ids, force },
+                force ? "Reject emails resent" : "Reject emails sent",
               )
             }
             onGenerateQr={(ids) =>

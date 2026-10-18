@@ -8,7 +8,7 @@ import {
   normalizeTeamId,
 } from "@/lib/fields"
 import { getActionMap } from "@/lib/actions-store"
-import { getMailMap } from "@/lib/mail-db"
+import { getMailMap, syncPeopleProfiles } from "@/lib/mail-db"
 import { getTeamQrMap, teamKey } from "@/lib/team-qr-store"
 import {
   isNotionConfigured,
@@ -71,6 +71,9 @@ function applyAction(row: Registration, action?: ActionRecord | null): Registrat
     qr_generated_at: action.qr_generated_at || row.qr_generated_at,
     qr_sent_at: action.qr_sent_at || row.qr_sent_at,
     qr_count: action.qr_count || row.qr_count,
+    reject_status: action.reject_status === "sent" ? "sent" : row.reject_status,
+    reject_sent_at: action.reject_sent_at || row.reject_sent_at,
+    reject_count: action.reject_count || row.reject_count,
   }
 }
 
@@ -221,6 +224,9 @@ export async function loadRoster(): Promise<RosterPayload> {
         qr_generated_at: null,
         qr_sent_at: null,
         qr_count: 0,
+        reject_status: "none",
+        reject_sent_at: null,
+        reject_count: 0,
       },
       overlay[base.id],
     )
@@ -259,6 +265,11 @@ export async function loadRoster(): Promise<RosterPayload> {
   payload.stats.qrSent = payload.registrations.filter(
     (row) => row.qr_status === "sent",
   ).length
+  try {
+    await syncPeopleProfiles(payload.registrations)
+  } catch (error) {
+    console.error("Could not save people profiles to Supabase", error)
+  }
   return payload
 }
 

@@ -4,7 +4,6 @@ import { readJsonFile, writeJsonFile } from "@/lib/json-store"
 import type { ActionRecord, QrStatus, Registration, RsvpStatus } from "@/lib/types"
 
 const STORE_NAME = "mail-db.json"
-const BLOB_PATH = "fetchathon3-mail-db.json"
 
 export type MailPerson = ActionRecord & {
   email: string
@@ -17,10 +16,6 @@ type Store = Record<string, MailPerson>
 const rankQr: Record<QrStatus, number> = { none: 0, generated: 1, sent: 2 }
 const rankRsvp: Record<RsvpStatus, number> = { none: 0, sent: 1, confirmed: 2 }
 const rankMail = { none: 0, sent: 1 } as const
-
-function blobEnabled() {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN)
-}
 
 function blank(partial?: Partial<MailPerson>): MailPerson {
   return {
@@ -38,6 +33,9 @@ function blank(partial?: Partial<MailPerson>): MailPerson {
     qr_generated_at: null,
     qr_sent_at: null,
     qr_count: 0,
+    reject_status: "none",
+    reject_sent_at: null,
+    reject_count: 0,
     ...partial,
   }
 }
@@ -55,6 +53,9 @@ function asActionPatch(record: MailPerson): ActionRecord {
     qr_generated_at: record.qr_generated_at,
     qr_sent_at: record.qr_sent_at,
     qr_count: record.qr_count,
+    reject_status: record.reject_status,
+    reject_sent_at: record.reject_sent_at,
+    reject_count: record.reject_count,
   }
 }
 
@@ -86,6 +87,9 @@ function normalize(value: unknown): MailPerson | null {
     qr_generated_at: item.qr_generated_at || null,
     qr_sent_at: item.qr_sent_at || null,
     qr_count: Number(item.qr_count || 0),
+    reject_status: item.reject_status === "sent" ? "sent" : "none",
+    reject_sent_at: item.reject_sent_at || null,
+    reject_count: Number(item.reject_count || 0),
   })
 }
 
@@ -119,48 +123,11 @@ function mergePerson(base: MailPerson, incoming: MailPerson): MailPerson {
     qr_generated_at: incoming.qr_generated_at || base.qr_generated_at,
     qr_sent_at: incoming.qr_sent_at || base.qr_sent_at,
     qr_count: Math.max(incoming.qr_count, base.qr_count),
-  }
-}
-
-async function readStreamText(input: unknown): Promise<string> {
-  if (!input) return ""
-  if (typeof input === "string") return input
-  if (input instanceof ReadableStream) return await new Response(input).text()
-  if (typeof input === "object") {
-    const item = input as { stream?: ReadableStream; body?: ReadableStream }
-    if (item.stream) return await new Response(item.stream).text()
-    if (item.body) return await new Response(item.body).text()
-  }
-  return ""
-}
-
-async function readBlobStore(): Promise<Store | null> {
-  if (!blobEnabled()) return null
-  try {
-    const blob = await import("@vercel/blob")
-    let parsed: unknown = null
-    try {
-      const file = await blob.get(BLOB_PATH, { access: "private", useCache: false })
-      const text = await readStreamText(file?.stream)
-      parsed = text ? JSON.parse(text) : null
-    } catch {
-      const { blobs } = await blob.list({ prefix: BLOB_PATH, limit: 20 })
-      const hit = blobs.find((item) => item.pathname === BLOB_PATH)
-      if (!hit) return null
-      const file = await blob.get(hit.url, { access: "private", useCache: false })
-      const text = await readStreamText(file?.stream)
-      parsed = text ? JSON.parse(text) : null
-    }
-    if (!parsed || typeof parsed !== "object") return null
-    const store: Store = {}
-    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
-      const person = normalize(value)
-      if (person) store[id] = person
-    }
-    return store
-  } catch (error) {
-    console.error("mail-db blob read failed", error)
-    return null
+    reject_status: rankMail[incoming.reject_status] >= rankMail[base.reject_status]
+      ? incoming.reject_status
+      : base.reject_status,
+    reject_sent_at: incoming.reject_sent_at || base.reject_sent_at,
+    reject_count: Math.max(incoming.reject_count, base.reject_count),
   }
 }
 
@@ -177,6 +144,7 @@ async function readSupabase(): Promise<Store> {
       rsvp_sent_at: isoTime(row.rsvp_sent_at),
       qr_generated_at: isoTime(row.qr_generated_at),
       qr_sent_at: isoTime(row.qr_sent_at),
+      reject_sent_at: isoTime(row.reject_sent_at),
     })
     if (id && person) store[id] = person
   }
@@ -202,6 +170,9 @@ async function writeSupabase(store: Store) {
     qr_generated_at: person.qr_generated_at,
     qr_sent_at: person.qr_sent_at,
     qr_count: person.qr_count,
+    reject_status: person.reject_status,
+    reject_sent_at: person.reject_sent_at,
+    reject_count: person.reject_count,
   }))
   for (let index = 0; index < rows.length; index += 100) {
     const chunk = rows.slice(index, index + 100)
@@ -222,23 +193,11 @@ async function writeSupabase(store: Store) {
         qr_generated_at = excluded.qr_generated_at,
         qr_sent_at = excluded.qr_sent_at,
         qr_count = excluded.qr_count,
+        reject_status = excluded.reject_status,
+        reject_sent_at = excluded.reject_sent_at,
+        reject_count = excluded.reject_count,
         updated_at = now()
     `
-  }
-}
-
-async function writeBlobStore(store: Store) {
-  if (!blobEnabled()) return
-  try {
-    const { put } = await import("@vercel/blob")
-    await put(BLOB_PATH, JSON.stringify(store, null, 2), {
-      access: "private",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-    })
-  } catch (error) {
-    console.error("mail-db blob write failed", error)
   }
 }
 
@@ -284,8 +243,7 @@ async function loadStore(): Promise<Store> {
       const person = normalize(value)
       if (person) fromFile[id] = person
     }
-    const fromBlob = await readBlobStore()
-    const merged = mergeStores(fromOverlay, fromFile, fromBlob)
+    const merged = mergeStores(fromOverlay, fromFile)
     if (remoteOk && Object.keys(merged).length) await writeSupabase(merged)
     memory = merged
     return memory
@@ -305,11 +263,60 @@ async function saveStore(store: Store) {
   }
   memory = store
   await writeJsonFile(STORE_NAME, store)
-  await writeBlobStore(store)
 }
 
 export async function getMailMap() {
   return loadStore()
+}
+
+export async function syncPeopleProfiles(rows: Registration[]) {
+  const sql = db()
+  if (!sql || rows.length === 0) return
+  const payload = rows
+    .filter((row) => row.id)
+    .map((row) => ({
+      notion_id: row.id,
+      email: row.email || "",
+      name: row.name || "",
+      team_id: row.team_id_display || row.team_id || "",
+      phone: row.phone || "",
+      role: row.role || "",
+      organization: row.organization || "",
+      participation: row.participation || "",
+      are_you: row.are_you || "",
+      city: row.city || "",
+      skills: row.skills.join(", "),
+      experience: row.experience || "",
+      github: row.github || "",
+      linkedin: row.linkedin || "",
+      address: row.address || "",
+      team_size: row.team_size || "",
+      registration_status: row.status || "",
+    }))
+  for (let index = 0; index < payload.length; index += 80) {
+    const chunk = payload.slice(index, index + 80)
+    await sql`
+      insert into mail_people ${sql(chunk)}
+      on conflict (notion_id) do update set
+        email = excluded.email,
+        name = excluded.name,
+        team_id = excluded.team_id,
+        phone = excluded.phone,
+        role = excluded.role,
+        organization = excluded.organization,
+        participation = excluded.participation,
+        are_you = excluded.are_you,
+        city = excluded.city,
+        skills = excluded.skills,
+        experience = excluded.experience,
+        github = excluded.github,
+        linkedin = excluded.linkedin,
+        address = excluded.address,
+        team_size = excluded.team_size,
+        registration_status = excluded.registration_status,
+        updated_at = now()
+    `
+  }
 }
 
 export function mailMeta(row: Pick<Registration, "id" | "email" | "name" | "team_id" | "team_id_display">) {
@@ -324,7 +331,7 @@ export function mailMeta(row: Pick<Registration, "id" | "email" | "name" | "team
 export async function persistMailRecords(
   people: Array<{ id: string; email?: string; name?: string; team_id?: string }>,
   patch: Partial<MailPerson>,
-  bump?: "registration" | "rsvp" | "qr",
+  bump?: "registration" | "rsvp" | "qr" | "reject",
 ) {
   const store = { ...(await loadStore()) }
   const ids: string[] = []
@@ -354,9 +361,15 @@ export async function persistMailRecords(
     next.registration_mail_count = prev.registration_mail_count
     next.rsvp_count = prev.rsvp_count
     next.qr_count = prev.qr_count
+    next.reject_count = prev.reject_count
+    next.reject_status =
+      rankMail[next.reject_status] >= rankMail[prev.reject_status]
+        ? next.reject_status
+        : prev.reject_status
     if (bump === "registration") next.registration_mail_count += 1
     if (bump === "rsvp") next.rsvp_count += 1
     if (bump === "qr") next.qr_count += 1
+    if (bump === "reject") next.reject_count += 1
     store[person.id] = next
     ids.push(person.id)
   }

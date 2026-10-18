@@ -5,9 +5,9 @@ import { toast } from "sonner"
 
 import type { RosterPayload } from "@/lib/types"
 
-export function useRoster() {
-  const [data, setData] = React.useState<RosterPayload | null>(null)
-  const [loading, setLoading] = React.useState(true)
+export function useRoster(initial?: RosterPayload | null) {
+  const [data, setData] = React.useState<RosterPayload | null>(initial ?? null)
+  const [loading, setLoading] = React.useState(!initial)
   const [error, setError] = React.useState<string | null>(null)
 
   const refresh = React.useCallback(async () => {
@@ -29,8 +29,9 @@ export function useRoster() {
   }, [])
 
   React.useEffect(() => {
+    if (initial) return
     void refresh()
-  }, [refresh])
+  }, [initial, refresh])
 
   const runAction = React.useCallback(
     async (

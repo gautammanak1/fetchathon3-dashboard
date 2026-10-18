@@ -6,6 +6,9 @@ import {
   registrationHtml,
   registrationSubject,
   registrationText,
+  rejectHtml,
+  rejectSubject,
+  rejectText,
   rsvpHtml,
   rsvpSubject,
   rsvpText,
@@ -105,6 +108,44 @@ export async function sendRsvpEmails(groups: TeamMailGroup[]): Promise<SendResul
             subject: rsvpSubject(mailVenue(group.primary.city, group.primary.metro).label),
             text: rsvpText(group.primary, group.members, rsvpConfirmUrl(group.key)),
             html: rsvpHtml(group.primary, group.members, rsvpConfirmUrl(group.key)),
+          },
+          transporter,
+        )
+        result.sent += 1
+        result.sentIds.push(...group.members.map((member) => member.id))
+      } catch (error) {
+        markGroupFailed(
+          result,
+          group,
+          error instanceof Error ? error.message : "SMTP send failed",
+        )
+      }
+      await sleep(SEND_GAP_MS)
+    }
+  } finally {
+    transporter.close()
+  }
+  return result
+}
+
+export async function sendRejectEmails(groups: TeamMailGroup[]): Promise<SendResult> {
+  const result: SendResult = { sent: 0, sentIds: [], failed: [], skipped: [] }
+  const transporter = createSmtpTransport()
+  try {
+    for (const group of groups) {
+      if (!EMAIL_RE.test(group.to.email)) {
+        markGroupSkipped(result, group, "Missing or invalid email")
+        continue
+      }
+      try {
+        await sendSmtpMail(
+          {
+            to: group.to.email,
+            toName: group.to.name,
+            cc: group.cc.map((item) => item.email),
+            subject: rejectSubject(),
+            text: rejectText(group.primary),
+            html: rejectHtml(group.primary),
           },
           transporter,
         )
@@ -250,6 +291,9 @@ function sampleTestRow(): Registration {
     qr_generated_at: null,
     qr_sent_at: null,
     qr_count: 0,
+    reject_status: "none",
+    reject_sent_at: null,
+    reject_count: 0,
     property_types: {},
   }
 }

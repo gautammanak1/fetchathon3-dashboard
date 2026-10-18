@@ -1,6 +1,6 @@
 "use client"
 
-import { MailIcon, QrCodeIcon, SendIcon, UsersIcon } from "lucide-react"
+import { MailIcon, QrCodeIcon, SendIcon } from "lucide-react"
 
 import {
   AlertDialog,
@@ -18,27 +18,24 @@ import type { Registration } from "@/lib/types"
 
 export function ActionBar({
   selected,
-  filtered,
   busy,
   canManage,
   onRegistration,
   onRsvp,
-  onRsvpAll,
+  onReject,
   onGenerateQr,
   onSendQr,
 }: {
   selected: Registration[]
-  filtered: Registration[]
   busy: boolean
   canManage: boolean
   onRegistration: (force?: boolean) => void
   onRsvp: (force?: boolean) => void
-  onRsvpAll: () => void
+  onReject: (force?: boolean) => void
   onGenerateQr: () => void
   onSendQr: (force?: boolean) => void
 }) {
   const count = selected.length
-  const filteredCount = filtered.length
   const teamCount = new Set(selected.map((row) => row.team_id || row.id)).size
   const pendingRegistration = selected.filter(
     (row) => row.registration_mail_status !== "sent",
@@ -48,7 +45,8 @@ export function ActionBar({
   const alreadyRsvp = count - pendingRsvp.length
   const pendingQr = selected.filter((row) => row.qr_status !== "sent")
   const alreadyQr = count - pendingQr.length
-  const filteredPendingRsvp = filtered.filter((row) => row.rsvp_status === "none")
+  const pendingReject = selected.filter((row) => row.reject_status !== "sent")
+  const alreadyReject = count - pendingReject.length
 
   if (!canManage) {
     return null
@@ -108,11 +106,11 @@ export function ActionBar({
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Send seat confirmation?</AlertDialogTitle>
+            <AlertDialogTitle>Send the RSVP mail?</AlertDialogTitle>
             <AlertDialogDescription>
               {count === 1
-                ? `This sends one seat confirmation to ${selected[0]?.team_id_display || "this team"}. Teammates are CC'd on the same email.`
-                : `This sends one seat-confirmation email per team for the ${count} selected people. Teammates are CC'd. Nobody gets a second copy unless you send again.`}
+                ? `This asks ${selected[0]?.team_id_display || "this team"} to confirm, using their location. Teammates are CC'd. It records RSVP as mailed. Confirmed happens only when they click Absolutely, I'm in.`
+                : `This sends one RSVP email per team for the ${count} selected people, using each team's location. It records RSVP as mailed, not confirmed.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -132,23 +130,26 @@ export function ActionBar({
       </AlertDialog>
       <AlertDialog>
         <AlertDialogTrigger asChild>
-          <Button variant="outline" disabled={filteredPendingRsvp.length === 0 || busy}>
-            <UsersIcon />
-            RSVP all filtered
+          <Button variant="outline" disabled={count === 0 || busy}>
+            <MailIcon />
+            Send reject
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Bulk RSVP all filtered?</AlertDialogTitle>
+            <AlertDialogTitle>Send the reject mail?</AlertDialogTitle>
             <AlertDialogDescription>
-              This emails teams in the current filter that have not received RSVP yet. Already-sent teams are skipped. Open a team and use Send again to resend.
+              This thanks them for registering and says we hope to see them at Fetch-A-Thon 4.0. It is recorded as reject mail, separate from RSVP.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={onRsvpAll}>
-              Send {filteredPendingRsvp.length} new emails
-            </AlertDialogAction>
+            {pendingReject.length > 0 ? (
+              <AlertDialogAction onClick={() => onReject(false)}>Send new only</AlertDialogAction>
+            ) : null}
+            {alreadyReject > 0 ? (
+              <AlertDialogAction onClick={() => onReject(true)}>Send again</AlertDialogAction>
+            ) : null}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

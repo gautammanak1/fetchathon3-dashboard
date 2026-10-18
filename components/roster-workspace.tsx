@@ -2,12 +2,16 @@
 
 import * as React from "react"
 
+import { DownloadIcon } from "lucide-react"
+
 import { ActionBar } from "@/components/action-bar"
 import { QrPreviewDialog } from "@/components/qr-preview-dialog"
 import { RegistrationDetail } from "@/components/registration-detail"
 import { RegistrationFilters } from "@/components/registration-filters"
 import { RegistrationTable } from "@/components/registration-table"
+import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
+import { downloadCsv } from "@/lib/csv"
 import { EMPTY_FILTERS, filterRegistrations } from "@/lib/filters"
 import type { Filters, Registration } from "@/lib/types"
 
@@ -15,6 +19,7 @@ export function RosterWorkspace({
   rows,
   onRegistration,
   onRsvp,
+  onReject,
   onGenerateQr,
   onSendQr,
   busy,
@@ -22,6 +27,7 @@ export function RosterWorkspace({
   rows: Registration[]
   onRegistration: (ids: string[], force?: boolean) => Promise<boolean>
   onRsvp: (ids: string[], force?: boolean) => Promise<boolean>
+  onReject: (ids: string[], force?: boolean) => Promise<boolean>
   onGenerateQr: (ids: string[]) => Promise<boolean>
   onSendQr: (ids: string[], force?: boolean) => Promise<boolean>
   busy: boolean
@@ -79,9 +85,38 @@ export function RosterWorkspace({
         onChange={setFilters}
         showActions={isAdmin}
       />
+      <div className="flex justify-end px-4 lg:px-6">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={filtered.length === 0}
+          onClick={() =>
+            downloadCsv(
+              "fetchathon-registrations.csv",
+              filtered.map((row) => ({
+                name: row.name,
+                email: row.email,
+                phone: row.phone,
+                role: row.role,
+                team: row.team_id_display,
+                organization: row.organization,
+                location: row.city,
+                status: row.status,
+                registration: row.registration_mail_status,
+                rsvp: row.rsvp_status,
+                reject: row.reject_status,
+                qr: row.qr_status,
+              })),
+            )
+          }
+        >
+          <DownloadIcon />
+          Export CSV
+        </Button>
+      </div>
       <ActionBar
         selected={selected}
-        filtered={filtered}
         busy={busy}
         canManage={isAdmin}
         onRegistration={(force) =>
@@ -102,11 +137,13 @@ export function RosterWorkspace({
             force,
           )
         }
-        onRsvpAll={() =>
-          void onRsvp(
-            filtered
-              .filter((row) => row.rsvp_status === "none")
-              .map((row) => row.id),
+        onReject={(force) =>
+          void onReject(
+            (force
+              ? selected
+              : selected.filter((row) => row.reject_status !== "sent")
+            ).map((row) => row.id),
+            force,
           )
         }
         onGenerateQr={() => void onGenerateQr(selected.map((row) => row.id))}
@@ -143,6 +180,7 @@ export function RosterWorkspace({
         onPreviewQr={(id) => void previewQr(id)}
         onRegistration={(id, force) => void onRegistration([id], force)}
         onRsvp={(id, force) => void onRsvp([id], force)}
+        onReject={(id, force) => void onReject([id], force)}
         onGenerateQr={(id) => void onGenerateQr([id])}
         onSendQr={(id, force) => void onSendQr([id], force)}
       />

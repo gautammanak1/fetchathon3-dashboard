@@ -313,6 +313,39 @@ export function registrationHtml(row: Registration) {
   return wrapEmail(registrationSubject(), inner)
 }
 
+export function rejectSubject() {
+  return "See you at Fetch-A-Thon 4.0"
+}
+
+export function rejectText(row: Registration) {
+  const name = clean(row.name) || "there"
+  return [
+    `Hi ${name},`,
+    "",
+    "Thank you for registering for Fetch-A-Thon 3.0.",
+    "",
+    "We could not offer you a seat this time. We hope to see you next time at Fetch-A-Thon 4.0.",
+    "",
+    "Regards,",
+    "Fetch.ai Innovation Lab",
+    "",
+    "Thank you",
+  ].join("\n")
+}
+
+export function rejectHtml(row: Registration) {
+  const name = clean(row.name) || "there"
+  const inner = `<tr><td class="pad" style="padding:28px 28px 8px;font-family:${FONT};color:#1a1a1a;">
+    <p style="margin:0;font-size:16px;line-height:1.5;">Hi ${escapeHtml(name)},</p>
+    <p style="margin:16px 0 0;font-size:16px;line-height:1.55;">Thank you for registering for <strong>Fetch-A-Thon 3.0</strong>.</p>
+    <p style="margin:16px 0 0;font-size:16px;line-height:1.55;">We could not offer you a seat this time. We hope to see you next time at <strong>Fetch-A-Thon 4.0</strong>.</p>
+    <p style="margin:22px 0 0;font-size:15px;line-height:1.5;color:#222;">Regards,</p>
+    <p style="margin:4px 0 0;font-size:15px;line-height:1.5;font-weight:700;color:#222;">Fetch.ai Innovation Lab</p>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.5;color:#222;">Thank you</p>
+  </td></tr>`
+  return wrapEmail(rejectSubject(), `${inner}${mailFooter()}`)
+}
+
 export function rsvpSubject(venueLabel = "") {
   return venueLabel
     ? `You're selected for Fetch-A-Thon 3.0 — ${venueLabel}`
@@ -765,9 +798,20 @@ function rsvpFromCompose(subject: string, body: string) {
   return wrapEmail(subject, `${rsvpShell(greeting, confirmUrl, message)}${mailFooter()}`)
 }
 
+function sanitizeMailHtml(html: string) {
+  return html
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/\son\w+=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
+}
+
 export function composeMessageHtml(subject: string, body: string) {
-  if (/shortlisted for fetch-a-thon|confirm your rsvp|absolutely, i'm in|you are selected/i.test(body)) {
-    return rsvpFromCompose(subject, body)
+  const trimmed = body.trim()
+  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
+    const inner = `<tr><td class="pad" style="padding:28px 28px 8px;font-family:${FONT};color:#1a1a1a;font-size:16px;line-height:1.55;">${sanitizeMailHtml(trimmed)}</td></tr>`
+    return wrapEmail(subject, `${inner}${mailFooter()}`)
+  }
+  if (/shortlisted for fetch-a-thon|confirm your rsvp|absolutely, i'm in|you are selected/i.test(trimmed)) {
+    return rsvpFromCompose(subject, trimmed)
   }
   const rows = body
     .split(/\n{2,}/)
@@ -780,5 +824,11 @@ export function composeMessageHtml(subject: string, body: string) {
 }
 
 export function composeMessageText(body: string) {
-  return body.trim()
+  return body
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .trim()
 }

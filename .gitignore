@@ -40,6 +40,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Self-hosted TinyMCE is copied from node_modules before dev and build.
+/public/tinymce
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

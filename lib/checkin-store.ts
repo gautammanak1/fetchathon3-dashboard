@@ -2,7 +2,6 @@ import { db, isoTime } from "@/lib/db"
 import { readJsonFile, writeJsonFile } from "@/lib/json-store"
 
 const STORE_NAME = "checkin.json"
-const BLOB_PATH = "fetchathon3-checkin.json"
 
 export type CheckInRecord = {
   registration_id: string
@@ -17,10 +16,6 @@ export type CheckInRecord = {
 }
 
 type Store = Record<string, CheckInRecord>
-
-function blobEnabled() {
-  return Boolean(process.env.BLOB_READ_WRITE_TOKEN)
-}
 
 function normalize(value: unknown): CheckInRecord | null {
   if (!value || typeof value !== "object") return null
@@ -38,66 +33,6 @@ function normalize(value: unknown): CheckInRecord | null {
     team_id_display: String(item.team_id_display || item.team_key || ""),
     venue: String(item.venue || ""),
     checked_in_at: at,
-  }
-}
-
-function earlier(current: CheckInRecord | undefined, incoming: CheckInRecord) {
-  if (!current) return incoming
-  return incoming.checked_in_at < current.checked_in_at
-    ? { ...current, ...incoming, checked_in_at: incoming.checked_in_at }
-    : { ...incoming, ...current, checked_in_at: current.checked_in_at }
-}
-
-function mergeStores(...stores: Array<Store | null | undefined>): Store {
-  const merged: Store = {}
-  for (const store of stores) {
-    if (!store) continue
-    for (const [id, record] of Object.entries(store)) {
-      merged[id] = earlier(merged[id], record)
-    }
-  }
-  return merged
-}
-
-async function readStreamText(input: unknown): Promise<string> {
-  if (!input) return ""
-  if (typeof input === "string") return input
-  if (input instanceof ReadableStream) return await new Response(input).text()
-  if (typeof input === "object") {
-    const item = input as { stream?: ReadableStream; body?: ReadableStream }
-    if (item.stream) return await new Response(item.stream).text()
-    if (item.body) return await new Response(item.body).text()
-  }
-  return ""
-}
-
-async function readBlobStore(): Promise<Store | null> {
-  if (!blobEnabled()) return null
-  try {
-    const blob = await import("@vercel/blob")
-    let parsed: unknown = null
-    try {
-      const file = await blob.get(BLOB_PATH, { access: "private", useCache: false })
-      const text = await readStreamText(file?.stream)
-      parsed = text ? JSON.parse(text) : null
-    } catch {
-      const { blobs } = await blob.list({ prefix: BLOB_PATH, limit: 20 })
-      const hit = blobs.find((item) => item.pathname === BLOB_PATH)
-      if (!hit) return null
-      const file = await blob.get(hit.url, { access: "private", useCache: false })
-      const text = await readStreamText(file?.stream)
-      parsed = text ? JSON.parse(text) : null
-    }
-    if (!parsed || typeof parsed !== "object") return null
-    const store: Store = {}
-    for (const [id, value] of Object.entries(parsed as Record<string, unknown>)) {
-      const record = normalize(value)
-      if (record) store[id] = record
-    }
-    return store
-  } catch (error) {
-    console.error("check-in blob read failed", error)
-    return null
   }
 }
 
@@ -141,21 +76,6 @@ async function deleteSupabase(registrationId: string) {
   await sql`delete from checkins where registration_id = ${registrationId}`
 }
 
-async function writeBlobStore(store: Store) {
-  if (!blobEnabled()) return
-  try {
-    const { put } = await import("@vercel/blob")
-    await put(BLOB_PATH, JSON.stringify(store, null, 2), {
-      access: "private",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-    })
-  } catch (error) {
-    console.error("check-in blob write failed", error)
-  }
-}
-
 let memory: Store | null = null
 let chain: Promise<unknown> = Promise.resolve()
 
@@ -189,7 +109,7 @@ async function loadStore() {
     const record = normalize({ ...(value as object), registration_id: id })
     if (record) fromFile[id] = record
   }
-  const merged = mergeStores(fromFile, await readBlobStore())
+  const merged = fromFile
   if (remoteOk && Object.keys(merged).length) await writeSupabase(merged)
   memory = merged
   return memory
@@ -203,7 +123,6 @@ async function saveStore(store: Store) {
   }
   memory = store
   await writeJsonFile(STORE_NAME, store)
-  await writeBlobStore(store)
 }
 
 export async function getCheckInMap() {

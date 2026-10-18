@@ -1,13 +1,14 @@
 "use client"
 
 import * as React from "react"
-import { SearchIcon } from "lucide-react"
+import { DownloadIcon, SearchIcon } from "lucide-react"
 
 import { DashboardShell } from "@/components/dashboard-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useRoster } from "@/hooks/use-roster"
+import { downloadCsv } from "@/lib/csv"
 import { cn } from "cn"
 import type { Registration } from "@/lib/types"
 
@@ -16,17 +17,19 @@ type Choice = "all" | "sent" | "none" | "confirmed" | "generated"
 const EMPTY = {
   registration: "all" as Choice,
   rsvp: "all" as Choice,
+  reject: "all" as Choice,
   qr: "all" as Choice,
   venue: "all",
   q: "",
 }
 
-function labelFor(kind: "registration" | "rsvp" | "qr", value: string) {
+function labelFor(kind: "registration" | "rsvp" | "qr" | "reject", value: string) {
   if (kind === "registration") return value === "sent" ? "Sent" : "Not sent"
+  if (kind === "reject") return value === "sent" ? "Sent" : "Not sent"
   if (kind === "rsvp") {
     if (value === "confirmed") return "Confirmed"
-    if (value === "sent") return "Sent"
-    return "Not sent"
+    if (value === "sent") return "Mailed"
+    return "Not mailed"
   }
   if (value === "sent") return "Sent"
   if (value === "generated") return "Generated"
@@ -49,7 +52,7 @@ function LabeledPill({
   value,
 }: {
   label: string
-  kind: "registration" | "rsvp" | "qr"
+  kind: "registration" | "rsvp" | "qr" | "reject"
   value: string
 }) {
   return (
@@ -64,7 +67,7 @@ function StatusPill({
   kind,
   value,
 }: {
-  kind: "registration" | "rsvp" | "qr"
+  kind: "registration" | "rsvp" | "qr" | "reject"
   value: string
 }) {
   return (
@@ -120,6 +123,7 @@ export function MailLogPage() {
         return false
       }
       if (filters.rsvp !== "all" && row.rsvp_status !== filters.rsvp) return false
+      if (filters.reject !== "all" && row.reject_status !== filters.reject) return false
       if (filters.qr !== "all" && row.qr_status !== filters.qr) return false
       if (!query) return true
       const blob = [row.name, row.email, row.team_id_display, row.city, row.organization]
@@ -139,13 +143,15 @@ export function MailLogPage() {
       rsvpConfirmed: tally((row) => row.rsvp_status === "confirmed"),
       rsvpSent: tally((row) => row.rsvp_status === "sent"),
       rsvpNone: tally((row) => row.rsvp_status === "none"),
+      rejectSent: tally((row) => row.reject_status === "sent"),
+      rejectNone: tally((row) => row.reject_status !== "sent"),
       qrSent: tally((row) => row.qr_status === "sent"),
       qrGenerated: tally((row) => row.qr_status === "generated"),
       qrNone: tally((row) => row.qr_status === "none"),
     }
   }, [filters.venue, rows])
 
-  function setChoice(key: "registration" | "rsvp" | "qr", value: Choice) {
+  function setChoice(key: "registration" | "rsvp" | "reject" | "qr", value: Choice) {
     setFilters((current) => ({
       ...current,
       [key]: current[key] === value ? "all" : value,
@@ -156,7 +162,7 @@ export function MailLogPage() {
     <DashboardShell title="Mail log">
       <div className="grid gap-4 px-4 lg:px-6">
         <p className="max-w-2xl text-sm text-muted-foreground">
-          Who has a registration mail, an RSVP, or a QR email. People still come from Notion.
+          People come from Notion. Who was mailed, who confirmed, and who got a reject mail is stored in Supabase.
         </p>
 
         {loading ? (
@@ -169,7 +175,7 @@ export function MailLogPage() {
           <p className="text-sm text-muted-foreground">{error}</p>
         ) : (
           <>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <FilterCard
                 title="Registration"
                 active={filters.registration}
@@ -185,8 +191,17 @@ export function MailLogPage() {
                 onPick={(value) => setChoice("rsvp", value)}
                 items={[
                   { value: "confirmed", label: "Confirmed", count: counts.rsvpConfirmed },
-                  { value: "sent", label: "Sent", count: counts.rsvpSent },
-                  { value: "none", label: "Not sent", count: counts.rsvpNone },
+                  { value: "sent", label: "Mailed, waiting", count: counts.rsvpSent },
+                  { value: "none", label: "Not mailed", count: counts.rsvpNone },
+                ]}
+              />
+              <FilterCard
+                title="Reject"
+                active={filters.reject}
+                onPick={(value) => setChoice("reject", value)}
+                items={[
+                  { value: "sent", label: "Sent", count: counts.rejectSent },
+                  { value: "none", label: "Not sent", count: counts.rejectNone },
                 ]}
               />
               <FilterCard
@@ -242,18 +257,45 @@ export function MailLogPage() {
               <p className="text-sm text-muted-foreground">
                 Showing {visible.length} of {counts.people}
               </p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setFilters(EMPTY)}
-              >
-                Clear filters
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={visible.length === 0}
+                  onClick={() =>
+                    downloadCsv(
+                      "fetchathon-mail-log.csv",
+                      visible.map((row) => ({
+                        name: row.name,
+                        email: row.email,
+                        team: row.team_id_display,
+                        location: row.city,
+                        organization: row.organization,
+                        registration: row.registration_mail_status,
+                        rsvp: row.rsvp_status,
+                        reject: row.reject_status,
+                        qr: row.qr_status,
+                      })),
+                    )
+                  }
+                >
+                  <DownloadIcon />
+                  Export CSV
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFilters(EMPTY)}
+                >
+                  Clear filters
+                </Button>
+              </div>
             </div>
 
             <div
-              key={`${filters.registration}-${filters.rsvp}-${filters.qr}-${filters.venue}-${filters.q}`}
+              key={`${filters.registration}-${filters.rsvp}-${filters.reject}-${filters.qr}-${filters.venue}-${filters.q}`}
               className="rise overflow-hidden rounded-2xl border bg-card"
             >
               {visible.length === 0 ? (
@@ -277,6 +319,7 @@ export function MailLogPage() {
                       <div className="flex flex-wrap gap-x-3 gap-y-1">
                         <LabeledPill label="Reg" kind="registration" value={row.registration_mail_status} />
                         <LabeledPill label="RSVP" kind="rsvp" value={row.rsvp_status} />
+                        <LabeledPill label="Reject" kind="reject" value={row.reject_status} />
                         <LabeledPill label="QR" kind="qr" value={row.qr_status} />
                       </div>
                     </li>

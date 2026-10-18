@@ -45,7 +45,7 @@ export async function POST(request: Request) {
         id: row.id,
         reason: "RSVP already sent",
       })),
-      note: "No new RSVP emails. Selected teams already received seat confirmation. Use Send again to resend.",
+      note: "No new RSVP emails. These people already have an RSVP mail. Use Send again to resend. Confirmed means they clicked Absolutely, I'm in.",
     })
   }
 

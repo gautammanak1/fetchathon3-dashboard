@@ -51,6 +51,7 @@ export function RegistrationDetail({
   onPreviewQr,
   onRegistration,
   onRsvp,
+  onReject,
   onGenerateQr,
   onSendQr,
   canManage,
@@ -61,6 +62,7 @@ export function RegistrationDetail({
   onPreviewQr: (id: string) => void
   onRegistration: (id: string, force?: boolean) => void
   onRsvp: (id: string, force?: boolean) => void
+  onReject: (id: string, force?: boolean) => void
   onGenerateQr: (id: string) => void
   onSendQr: (id: string, force?: boolean) => void
   canManage: boolean
@@ -185,15 +187,16 @@ export function RegistrationDetail({
                       <AlertDialogHeader>
                         <AlertDialogTitle>
                           {row.rsvp_status !== "none"
-                            ? "Resend team seat confirmation?"
-                            : "Send team seat confirmation?"}
+                            ? "Resend this team's RSVP?"
+                            : "Send this team's RSVP?"}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          This sends one email to {row.team_id_display || "this team"}.
-                          Teammates are CC'd.
-                          {row.rsvp_status !== "none"
-                            ? " This team already received RSVP; this sends another copy."
-                            : ""}
+                          This sends the location RSVP to {row.team_id_display || "this team"} and records it as mailed. Confirmed happens when they click Absolutely, I&apos;m in.
+                          {row.rsvp_status === "confirmed"
+                            ? " They already confirmed."
+                            : row.rsvp_status === "sent"
+                              ? " The RSVP was already mailed."
+                              : ""}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -202,6 +205,27 @@ export function RegistrationDetail({
                           onClick={() => onRsvp(row.id, row.rsvp_status !== "none")}
                         >
                           {row.rsvp_status !== "none" ? "Send again" : "Send team email"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" disabled={busy}>
+                        {row.reject_status === "sent" ? "Send reject again" : "Send reject"}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Send the reject mail?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This thanks {row.name || "them"} and says we hope to see them at Fetch-A-Thon 4.0. It does not change their RSVP status.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => onReject(row.id, row.reject_status === "sent")}>
+                          {row.reject_status === "sent" ? "Send again" : "Send reject"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
