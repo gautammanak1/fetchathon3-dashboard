@@ -98,10 +98,11 @@ export async function sendOfficialMail(input: {
   const roster = await loadRoster()
   const rows = roster.registrations.filter((row) => matches(row, input.audience))
   const groups = teamMailGroups(rows, roster.registrations).filter((group) => {
+    if (input.kind === "rsvp") {
+      return group.members.some((member) => member.rsvp_status === "none")
+    }
     if (input.force) return true
-    return input.kind === "rsvp"
-      ? group.members.some((member) => member.rsvp_status === "none")
-      : group.members.some((member) => member.reject_status !== "sent")
+    return group.members.some((member) => member.reject_status !== "sent")
   })
   if (groups.length === 0) {
     return {
@@ -110,7 +111,7 @@ export async function sendOfficialMail(input: {
       failed: [],
       note:
         input.kind === "rsvp"
-          ? "No new RSVP emails. These people already have an RSVP mail. Send again to resend."
+          ? "No new RSVP emails. Anyone who already has an RSVP mail is left out."
           : "No new reject emails. Send again to resend.",
     }
   }

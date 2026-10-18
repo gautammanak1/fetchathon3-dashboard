@@ -108,21 +108,16 @@ export function ActionBar({
           <AlertDialogHeader>
             <AlertDialogTitle>Send the RSVP mail?</AlertDialogTitle>
             <AlertDialogDescription>
-              {count === 1
-                ? `This asks ${selected[0]?.team_id_display || "this team"} to confirm, using their location. Teammates are CC'd. It records RSVP as mailed. Confirmed happens only when they click Absolutely, I'm in.`
-                : `This sends one RSVP email per team for the ${count} selected people, using each team's location. It records RSVP as mailed, not confirmed.`}
+              {pendingRsvp.length === 0
+                ? "Everyone selected already has an RSVP mail, so nobody will be mailed again."
+                : `This sends the RSVP only to ${pendingRsvp.length} ${pendingRsvp.length === 1 ? "person" : "people"} who have not received it. ${alreadyRsvp > 0 ? `${alreadyRsvp} already mailed ${alreadyRsvp === 1 ? "person is" : "people are"} left out.` : ""} Confirmed means they clicked Absolutely, I'm in.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             {pendingRsvp.length > 0 ? (
               <AlertDialogAction onClick={() => onRsvp(false)}>
-                Send new only
-              </AlertDialogAction>
-            ) : null}
-            {alreadyRsvp > 0 ? (
-              <AlertDialogAction onClick={() => onRsvp(true)}>
-                Send again
+                Send RSVP
               </AlertDialogAction>
             ) : null}
           </AlertDialogFooter>

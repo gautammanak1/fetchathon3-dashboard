@@ -264,7 +264,8 @@ function TeamSheet({
   const venue = team ? mailVenue(team.location, team.metro) : null
   const people = team ? peopleOf(team) : []
   const ids = people.map((member) => member.id)
-  const rsvpSent = people.some((member) => member.rsvp_status !== "none")
+  const rsvpPending = people.filter((member) => member.rsvp_status === "none")
+  const rsvpAlready = people.length - rsvpPending.length
   const rejectSent = people.some((member) => member.reject_status === "sent")
   const qrSent = people.some((member) => member.qr_status === "sent")
   const registeredAs =
@@ -317,25 +318,26 @@ function TeamSheet({
                 <div className="grid gap-2 sm:grid-cols-3">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button disabled={busy || !onRsvp}>
-                        {rsvpSent ? "Send RSVP again" : "Send RSVP"}
+                      <Button disabled={busy || !onRsvp || rsvpPending.length === 0}>
+                        {rsvpPending.length === 0 ? "RSVP already sent" : "Send RSVP"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          {rsvpSent ? "Resend this team's RSVP?" : "Send this team's RSVP?"}
-                        </AlertDialogTitle>
+                        <AlertDialogTitle>Send this team&apos;s RSVP?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          One email goes to every person on {team.team_id_display || "this team"}.
-                          Location in the mail: {venue.label}. Teammates are CC&apos;d. Confirmed
-                          means they clicked I&apos;m in.
+                          The mail goes to {rsvpPending.length}{" "}
+                          {rsvpPending.length === 1 ? "person" : "people"} who have not received it.
+                          {rsvpAlready > 0
+                            ? ` ${rsvpAlready} already mailed ${rsvpAlready === 1 ? "person is" : "people are"} left out.`
+                            : ""}{" "}
+                          Location in the mail: {venue.label}.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => onRsvp?.(ids, rsvpSent)}>
-                          {rsvpSent ? "Send again" : "Send RSVP"}
+                        <AlertDialogAction onClick={() => onRsvp?.(ids, false)}>
+                          Send RSVP
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

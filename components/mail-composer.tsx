@@ -385,7 +385,7 @@ export function MailComposer() {
                   </AlertDialogTitle>
                   <AlertDialogDescription>
                     {kind === "rsvp"
-                      ? `This sends the location RSVP to ${audienceLabel} who have not been mailed yet, and records them as RSVP mailed.`
+                      ? `This sends the location RSVP to ${audienceLabel}. Anyone who already has an RSVP mail is left out.`
                       : kind === "reject"
                         ? `This sends the Fetch-A-Thon 4.0 note to ${audienceLabel} who have not received a reject mail yet.`
                         : `This sends “${subject.trim() || "this message"}” to ${audienceLabel}. It does not change RSVP or confirm status.`}
@@ -393,8 +393,10 @@ export function MailComposer() {
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => void send(false, false)}>Send new only</AlertDialogAction>
-                  {kind !== "custom" ? (
+                  <AlertDialogAction onClick={() => void send(false, false)}>
+                    {kind === "rsvp" ? "Send RSVP" : "Send new only"}
+                  </AlertDialogAction>
+                  {kind === "reject" ? (
                     <AlertDialogAction onClick={() => void send(false, true)}>Send again</AlertDialogAction>
                   ) : null}
                 </AlertDialogFooter>

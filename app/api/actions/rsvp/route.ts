@@ -22,7 +22,6 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as { ids?: string[]; force?: boolean }
   const ids = [...new Set((body.ids || []).filter(Boolean))]
-  const force = body.force === true
   if (ids.length === 0) {
     return NextResponse.json({ error: "Select at least one person" }, { status: 400 })
   }
@@ -32,7 +31,7 @@ export async function POST(request: Request) {
     .map((id) => findRegistration(roster, id))
     .filter((row): row is NonNullable<typeof row> => Boolean(row))
   const groups = teamMailGroups(rows, roster.registrations).filter((group) =>
-    force ? true : group.members.some((member) => member.rsvp_status === "none"),
+    group.members.some((member) => member.rsvp_status === "none"),
   )
   if (groups.length === 0) {
     return NextResponse.json({
@@ -45,7 +44,7 @@ export async function POST(request: Request) {
         id: row.id,
         reason: "RSVP already sent",
       })),
-      note: "No new RSVP emails. These people already have an RSVP mail. Use Send again to resend. Confirmed means they clicked Absolutely, I'm in.",
+      note: "No new RSVP emails. Anyone who already has an RSVP mail is left out. Confirmed means they clicked Absolutely, I'm in.",
     })
   }
 

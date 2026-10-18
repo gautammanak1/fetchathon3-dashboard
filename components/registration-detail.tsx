@@ -177,34 +177,21 @@ export function RegistrationDetail({
                   </AlertDialog>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="outline" disabled={busy}>
-                        {row.rsvp_status !== "none"
-                          ? "Send RSVP again"
-                          : "Send RSVP to this team"}
+                      <Button variant="outline" disabled={busy || row.rsvp_status !== "none"}>
+                        {row.rsvp_status !== "none" ? "RSVP already sent" : "Send RSVP to this team"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
                       <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          {row.rsvp_status !== "none"
-                            ? "Resend this team's RSVP?"
-                            : "Send this team's RSVP?"}
-                        </AlertDialogTitle>
+                        <AlertDialogTitle>Send this team&apos;s RSVP?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This sends the location RSVP to {row.team_id_display || "this team"} and records it as mailed. Confirmed happens when they click Absolutely, I&apos;m in.
-                          {row.rsvp_status === "confirmed"
-                            ? " They already confirmed."
-                            : row.rsvp_status === "sent"
-                              ? " The RSVP was already mailed."
-                              : ""}
+                          This sends the location RSVP to people on {row.team_id_display || "this team"} who have not received it. Anyone already mailed is left out. Confirmed happens when they click Absolutely, I&apos;m in.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => onRsvp(row.id, row.rsvp_status !== "none")}
-                        >
-                          {row.rsvp_status !== "none" ? "Send again" : "Send team email"}
+                        <AlertDialogAction onClick={() => onRsvp(row.id, false)}>
+                          Send team email
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

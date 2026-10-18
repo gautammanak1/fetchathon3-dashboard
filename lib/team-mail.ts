@@ -28,6 +28,17 @@ function uniqueRecipients(members: Registration[]) {
   return recipients
 }
 
+export function hasRsvpMail(row: Pick<Registration, "rsvp_status">) {
+  return row.rsvp_status !== "none"
+}
+
+export function groupWithoutPriorRsvp(group: TeamMailGroup): TeamMailGroup | null {
+  const pending = group.members.filter((member) => !hasRsvpMail(member))
+  if (pending.length === 0) return null
+  if (pending.length === group.members.length) return group
+  return teamMailGroups(pending, pending)[0] || null
+}
+
 export function teamMailGroups(
   selected: Registration[],
   roster: Registration[],

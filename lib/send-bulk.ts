@@ -15,7 +15,7 @@ import {
 } from "@/lib/email-templates"
 import { rsvpConfirmUrl } from "@/lib/rsvp-confirm"
 import { createSmtpTransport, EMAIL_RE, sendSmtpMail, sleep } from "@/lib/smtp"
-import { type TeamMailGroup } from "@/lib/team-mail"
+import { groupWithoutPriorRsvp, type TeamMailGroup } from "@/lib/team-mail"
 import { teamQrImage, type TeamQrRecord } from "@/lib/team-qr-store"
 import type { Registration } from "@/lib/types"
 
@@ -95,28 +95,38 @@ export async function sendRsvpEmails(groups: TeamMailGroup[]): Promise<SendResul
   const transporter = createSmtpTransport()
   try {
     for (const group of groups) {
-      if (!EMAIL_RE.test(group.to.email)) {
-        markGroupSkipped(result, group, "Missing or invalid email")
+      const fresh = groupWithoutPriorRsvp(group)
+      if (!fresh) {
+        markGroupSkipped(result, group, "RSVP already sent")
+        continue
+      }
+      for (const member of group.members) {
+        if (!fresh.members.some((item) => item.id === member.id)) {
+          result.skipped.push({ id: member.id, reason: "RSVP already sent" })
+        }
+      }
+      if (!EMAIL_RE.test(fresh.to.email)) {
+        markGroupSkipped(result, fresh, "Missing or invalid email")
         continue
       }
       try {
         await sendSmtpMail(
           {
-            to: group.to.email,
-            toName: group.to.name,
-            cc: group.cc.map((item) => item.email),
-            subject: rsvpSubject(mailVenue(group.primary.city, group.primary.metro).label),
-            text: rsvpText(group.primary, group.members, rsvpConfirmUrl(group.key)),
-            html: rsvpHtml(group.primary, group.members, rsvpConfirmUrl(group.key)),
+            to: fresh.to.email,
+            toName: fresh.to.name,
+            cc: fresh.cc.map((item) => item.email),
+            subject: rsvpSubject(mailVenue(fresh.primary.city, fresh.primary.metro).label),
+            text: rsvpText(fresh.primary, fresh.members, rsvpConfirmUrl(fresh.key)),
+            html: rsvpHtml(fresh.primary, fresh.members, rsvpConfirmUrl(fresh.key)),
           },
           transporter,
         )
         result.sent += 1
-        result.sentIds.push(...group.members.map((member) => member.id))
+        result.sentIds.push(...fresh.members.map((member) => member.id))
       } catch (error) {
         markGroupFailed(
           result,
-          group,
+          fresh,
           error instanceof Error ? error.message : "SMTP send failed",
         )
       }
