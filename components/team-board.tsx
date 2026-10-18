@@ -41,6 +41,57 @@ function statusLabel(kind: "rsvp" | "qr", value: string) {
   return "Not sent"
 }
 
+const PERSON_FIELDS: Array<[keyof Registration, string]> = [
+  ["email", "Email"],
+  ["phone", "Phone"],
+  ["organization", "Organization"],
+  ["participation", "Participation"],
+  ["are_you", "Are you"],
+  ["city", "Location"],
+  ["metro", "City"],
+  ["experience", "Experience"],
+  ["address", "Address"],
+  ["github", "GitHub"],
+  ["linkedin", "LinkedIn"],
+]
+
+function linkFor(label: string, value: string) {
+  if (label.toLowerCase().includes("email") && value.includes("@")) return `mailto:${value}`
+  if (label === "Phone") {
+    const digits = value.replace(/[^\d+]/g, "")
+    return digits ? `tel:${digits}` : ""
+  }
+  if (/^https?:\/\//i.test(value)) return value
+  return ""
+}
+
+function when(value: string | null) {
+  if (!value) return ""
+  const time = new Date(value)
+  if (Number.isNaN(time.getTime())) return ""
+  return time.toLocaleString()
+}
+
+function Fact({ label, value, href }: { label: string; value: string; href?: string }) {
+  const text = value.trim()
+  if (!text) return null
+  const target = href || linkFor(label, text)
+  return (
+    <div className="grid gap-0.5">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="break-all text-sm">
+        {target ? (
+          <a href={target} target={target.startsWith("http") ? "_blank" : undefined} rel="noreferrer" className="underline">
+            {text}
+          </a>
+        ) : (
+          text
+        )}
+      </dd>
+    </div>
+  )
+}
+
 export function TeamBoard({
   teams,
   canManage = false,
@@ -166,7 +217,7 @@ function TeamSheet({
 
   return (
     <Sheet open={Boolean(team)} onOpenChange={(open) => !open && onClose()}>
-      <SheetContent className="w-full overflow-y-auto font-normal font-sans antialiased sm:max-w-lg">
+      <SheetContent className="w-full overflow-y-auto font-normal font-sans antialiased sm:max-w-xl">
         {team && venue ? (
           <>
             <SheetHeader>
@@ -180,15 +231,34 @@ function TeamSheet({
             </SheetHeader>
             <div className="grid gap-5 px-4 pb-6">
               <section className="rounded-2xl border bg-card p-4">
-                <p className="text-sm text-muted-foreground">RSVP location</p>
-                <p className="mt-1 text-base">{venue.label}</p>
+                <p className="text-sm text-muted-foreground">Team</p>
+                <dl className="mt-3 grid gap-3">
+                  <Fact label="Team ID" value={team.team_id_display} />
+                  <Fact label="Status" value={team.team_status} />
+                  <Fact label="Lead" value={team.lead_name} />
+                  <Fact label="Lead email" value={team.lead_email} />
+                  <Fact
+                    label="Registered"
+                    value={
+                      team.expected_size
+                        ? `${team.registered_count} / ${team.expected_size}`
+                        : String(team.registered_count)
+                    }
+                  />
+                  <Fact
+                    label="Seats left"
+                    value={team.seats_remaining === null ? "Size pending" : String(team.seats_remaining)}
+                  />
+                  <Fact label="Chosen location" value={registeredAs || team.location || venue.label} />
+                  <Fact label="RSVP location" value={venue.label} />
+                </dl>
                 {registeredAs ? (
-                  <p className="mt-1 text-sm text-muted-foreground">
+                  <p className="mt-3 text-sm text-muted-foreground">
                     They chose {registeredAs}. The mail sends {venue.label}.
                   </p>
-                ) : (
-                  <p className="mt-1 text-sm text-muted-foreground">{venue.note}</p>
-                )}
+                ) : venue.note ? (
+                  <p className="mt-3 text-sm text-muted-foreground">{venue.note}</p>
+                ) : null}
                 {venue.mapUrl ? (
                   <a
                     href={venue.mapUrl}
@@ -203,7 +273,7 @@ function TeamSheet({
 
               <section className="grid gap-3">
                 <p className="text-sm text-muted-foreground">People</p>
-                <ul className="divide-y rounded-2xl border">
+                <ul className="grid gap-3">
                   {team.members.map((member) => (
                     <MemberRow key={member.id} member={member} />
                   ))}
@@ -271,8 +341,11 @@ function TeamSheet({
 }
 
 function MemberRow({ member }: { member: Registration }) {
+  const registrationSent = when(member.registration_mail_sent_at)
+  const rsvpSent = when(member.rsvp_sent_at)
+  const qrSent = when(member.qr_sent_at)
   return (
-    <li className="grid gap-1 px-3 py-3 text-sm">
+    <li className="grid gap-3 rounded-2xl border px-3 py-3 text-sm">
       <div className="flex items-center justify-between gap-2">
         <span>
           {member.name || "Untitled"}
@@ -280,10 +353,28 @@ function MemberRow({ member }: { member: Registration }) {
         </span>
         <Badge variant="outline">{member.status || "—"}</Badge>
       </div>
-      <p className="text-xs text-muted-foreground">{member.email}</p>
-      <p className="text-xs text-muted-foreground">
-        RSVP {statusLabel("rsvp", member.rsvp_status)} · QR {statusLabel("qr", member.qr_status)}
-      </p>
+      <dl className="grid gap-3">
+        {PERSON_FIELDS.map(([key, label]) => (
+          <Fact key={key} label={label} value={String(member[key] || "")} />
+        ))}
+        {member.skills.length > 0 ? <Fact label="Skills" value={member.skills.join(", ")} /> : null}
+        <Fact
+          label="Registration mail"
+          value={
+            member.registration_mail_status === "sent"
+              ? `Sent${registrationSent ? ` · ${registrationSent}` : ""}`
+              : "Not sent"
+          }
+        />
+        <Fact
+          label="RSVP"
+          value={`${statusLabel("rsvp", member.rsvp_status)}${rsvpSent ? ` · ${rsvpSent}` : ""}`}
+        />
+        <Fact
+          label="QR"
+          value={`${statusLabel("qr", member.qr_status)}${qrSent ? ` · ${qrSent}` : ""}`}
+        />
+      </dl>
     </li>
   )
 }
