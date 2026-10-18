@@ -524,11 +524,7 @@ function rsvpShell(greeting: string, confirmUrl: string, message: string) {
   </td></tr>`
 }
 
-export function rsvpHtml(
-  row: Registration,
-  members: Registration[] = [row],
-  confirmUrl = "",
-) {
+function eventDetailRows(row: Registration, members: Registration[]) {
   const venue = mailVenue(row.city, row.metro)
   const note = venue.note && venue.note !== "This is your location." ? venue.note : ""
   const people = members
@@ -548,14 +544,95 @@ export function rsvpHtml(
     ["Team", people.length ? people.map((person) => escapeHtml(person)).join("<br>") : escapeHtml(personName(row))],
     ["Team ID", escapeHtml(clean(row.team_id_display) || "Solo")],
   )
+  return { venue, rows }
+}
+
+export function rsvpHtml(
+  row: Registration,
+  members: Registration[] = [row],
+  confirmUrl = "",
+) {
+  const { venue, rows } = eventDetailRows(row, members)
   const message = `${fitTable(rows)}${prizeFitTable()}`
   return wrapEmail(rsvpSubject(venue.label), `${rsvpShell(teamGreeting(row, members), confirmUrl, message)}${mailFooter()}`)
 }
 
-export function qrSubject(teamIdDisplay: string) {
-  return teamIdDisplay
-    ? `Your Fetch-A-Thon 3.0 venue QR for ${teamIdDisplay}`
-    : "Your Fetch-A-Thon 3.0 venue QR"
+const HELP_EMAIL = "gautam.kumar@fetch.ai"
+const HELP_LINKEDIN = "https://www.linkedin.com/in/gautammanak1"
+
+const AGENDA: Array<{ heading: string; items: Array<[string, string, string]> }> = [
+  {
+    heading: "Morning",
+    items: [
+      ["08:40", "Reach the venue", "Be at the location by 8:40."],
+      ["09:00", "Registration & Check-in", "Arrive. Badge up. Let's build. · Collect your badge · Find your team · Grab your seat"],
+      ["09:30", "Opening & Welcome", "The build day begins now. · Meet the team · Know the flow · Get inspired"],
+      ["09:45", "Introduction to Fetch.ai, ASI:One & AI Agents", "Learn the agentic stack. · uAgents framework · Agentverse deploy · ASI:One discover"],
+      ["10:15", "Challenge Brief & Rules", "From intent to action. · ACP required · Agentverse register · Demo in ASI:One"],
+      ["10:30", "Building Begins", "Ship something real. · Pick your problem · Wire your agent · Start executing"],
+    ],
+  },
+  {
+    heading: "Afternoon · 13:00 – 17:50",
+    items: [
+      ["13:00", "Lunch & Networking", "Fuel up. Connect. · Meet mentors · Swap ideas · Find teammates"],
+      ["14:00", "Building Continues", "Iterate. Test. Refine. · Debug your flow · Add more tools · Polish the demo"],
+      ["16:00", "Mentor Support & Project Review", "Get expert feedback. · Show your agent · Ask hard questions · Fix blockers fast"],
+      ["16:30", "Final Building & Submission", "Demo ready. Submit now. · GitHub repo live · Agentverse profile · ASI:One chat URL"],
+    ],
+  },
+  {
+    heading: "Evening · 17:50 – 18:30",
+    items: [
+      ["17:50", "Closing & Next Steps", "What a build day. · Thank the crew · Stay in community · Results coming soon"],
+      ["18:00", "End", "You built. You shipped. · Great work today · Rest up builders · See you soon"],
+    ],
+  },
+]
+
+function agendaFor(inPerson: boolean) {
+  return AGENDA.map((block, index) => {
+    if (index !== 0 || inPerson) return block
+    return {
+      ...block,
+      items: block.items.map((item, itemIndex) =>
+        itemIndex === 0
+          ? (["08:40", "Be ready online", "Be online by 8:40."] as [string, string, string])
+          : item,
+      ),
+    }
+  })
+}
+
+function agendaTable(inPerson: boolean) {
+  return agendaFor(inPerson)
+    .map(
+      (block) => `<tr><td colspan="2" style="padding:14px 12px 4px;font-family:${FONT};font-size:13px;font-weight:700;color:#111;">${escapeHtml(block.heading)}</td></tr>
+      ${block.items
+        .map(
+          ([time, title, detail]) => `<tr>
+            <td class="labelcol" width="72" valign="top" style="width:72px;padding:8px 8px 8px 12px;border-top:1px solid #f2f2f2;font-family:${FONT};font-size:14px;line-height:1.4;font-weight:700;color:#222;white-space:nowrap;">${escapeHtml(time)}</td>
+            <td valign="top" style="padding:8px 12px 8px 0;border-top:1px solid #f2f2f2;font-family:${FONT};font-size:14px;line-height:1.45;color:#222;">${escapeHtml(title)}<br><span style="font-size:12px;line-height:1.45;color:#6b6b6b;">${escapeHtml(detail)}</span></td>
+          </tr>`,
+        )
+        .join("")}`,
+    )
+    .join("")
+}
+
+function agendaText(inPerson: boolean) {
+  return agendaFor(inPerson).flatMap((block) => [
+    block.heading,
+    ...block.items.map(([time, title, detail]) => `${time} ${title} — ${detail}`),
+    "",
+  ])
+}
+
+export function qrSubject(teamIdDisplay: string, venueLabel = "") {
+  const place = venueLabel || teamIdDisplay
+  return place
+    ? `You're confirmed for Fetch-A-Thon 3.0 — ${place}`
+    : "You're confirmed for Fetch-A-Thon 3.0"
 }
 
 export function qrText(input: {
@@ -563,26 +640,55 @@ export function qrText(input: {
   teamIdDisplay: string
   venue: string
   memberNames: string[]
+  members?: Registration[]
 }) {
-  const name = clean(input.row.name)
+  const people = input.members?.length
+    ? input.members
+    : input.memberNames.map((name) => ({ ...input.row, name, role: "" }))
+  const { venue } = eventDetailRows(input.row, people)
+  const inPerson = venue.key !== "online"
+  const names = people.map((member) => clean(member.name)).filter(Boolean)
   return [
-    name ? `Hi ${name},` : "Hi,",
+    names.length ? `Hi ${names.join(", ")},` : "Hi,",
     "",
-    "Your team venue QR for Fetch-A-Thon 3.0 is ready.",
-    "One QR is used for the whole team. Scanning it opens your team pass with names and venue.",
-    "Show this at the venue check-in desk.",
+    "You're confirmed for Fetch-A-Thon 3.0. Your team QR is in this mail.",
+    inPerson
+      ? "Reach the location by 8:40."
+      : "Be online and ready by 8:40.",
+    inPerson
+      ? "No entry without this QR code. Bring a government ID."
+      : "Keep this QR. It is your team pass.",
+    "One QR is for the whole team.",
     "",
-    `Team ID: ${input.teamIdDisplay || "Solo"}`,
-    `Venue: ${input.venue || "See event page"}`,
-    input.memberNames.length
-      ? `Team: ${input.memberNames.join(", ")}`
-      : "",
+    `Saturday, ${EVENT_DATE}`,
+    `Team ID: ${input.teamIdDisplay || clean(input.row.team_id_display) || "Solo"}`,
+    `Location: ${venue.label}`,
+    venue.mapUrl || "",
     "",
-    `Event page: ${eventPageUrl()}`,
+    ...agendaText(inPerson),
+    "There is a gaming activity on the day as well. Join in between builds.",
+    "",
     DISCORD_NOTE,
     discordInviteUrl(),
+    "If you have any doubt, reach Gautam:",
+    HELP_EMAIL,
+    HELP_LINKEDIN,
     "",
+    "Exclusive offer",
+    "Unlock one month free access to ASI:One Pro and Agentverse Premium.",
+    `Use code: ${OFFER_CODE}`,
+    "",
+    `Hackpack: ${HACKPACK_URL}`,
+    `Example agents: ${EXAMPLES_URL}`,
+    `Docs: ${DOCS_URL}`,
+    "",
+    "Prizes",
+    ...PRIZES.map(([name, amount, detail]) => `${name}: ${amount} — ${detail}`),
+    "",
+    "Regards,",
     "Fetch.ai Innovation Lab",
+    "",
+    "Thank you",
   ]
     .filter((line, index, all) => !(line === "" && all[index - 1] === ""))
     .join("\n")
@@ -593,54 +699,47 @@ export function qrHtml(input: {
   teamIdDisplay: string
   venue: string
   memberNames: string[]
+  members?: Registration[]
 }) {
-  const who = clean(input.row.name)
-  const name = escapeHtml(who ? `Hi ${who},` : "Hi,")
-  const teamId = escapeHtml(input.teamIdDisplay || "Solo")
-  const venue = escapeHtml(input.venue || "See event page")
-  const members = escapeHtml(input.memberNames.join(", ") || clean(input.row.name))
-  const inner = `
-          <tr>
-            <td style="padding:32px 36px 0;font-family:${FONT};color:#1a1740;">
-              <p style="margin:0;font-size:26px;line-height:1.25;font-weight:700;">${name}</p>
-              <p style="margin:14px 0 0;font-size:16px;line-height:1.65;color:#3d3958;">
-                Your team venue QR for Fetch-A-Thon 3.0 is ready. One QR is used for the whole team. Scanning it opens your team pass.
-              </p>
-              <p style="margin:8px 0 0;font-size:16px;line-height:1.65;color:#3d3958;">
-                Show this QR at the venue check-in desk.
-              </p>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:28px 36px 0;">
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td width="4" style="width:4px;background:#5b45f5;font-size:0;line-height:0;">&nbsp;</td>
-                  <td style="padding:2px 0 2px 16px;font-family:${FONT};">
-                    <p style="margin:0;font-size:11px;line-height:1.4;letter-spacing:0.14em;text-transform:uppercase;color:#8a849e;">Venue entry pass</p>
-                    <p style="margin:6px 0 0;font-size:22px;line-height:1.2;font-weight:700;color:#2a1f8f;">${teamId}</p>
-                    <p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#4a4663;">Venue: ${venue}</p>
-                    <p style="margin:8px 0 0;font-size:14px;line-height:1.6;color:#4a4663;">Team: ${members}</p>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          <tr>
-            <td align="center" style="padding:28px 36px 0;">
-              <img src="cid:teamqr" width="240" alt="Team venue QR" style="display:block;width:240px;height:240px;border:0;background:#ffffff;">
-            </td>
-          </tr>
-          ${ctaButtonsHtml()}
-          <tr>
-            <td style="padding:24px 36px 32px;font-family:${FONT};">
-              <p style="margin:0;padding-top:18px;border-top:1px solid #ece8f5;font-size:12px;line-height:1.6;color:#8a849e;">
-                This QR is shared by the whole team. Anyone on the team can show it at the venue.
-              </p>
-              <p style="margin:14px 0 0;font-size:12px;line-height:1.5;color:#8a849e;">Fetch.ai Innovation Lab</p>
-            </td>
-          </tr>`
-  return wrapEmail(qrSubject(input.teamIdDisplay), inner)
+  const people = input.members?.length
+    ? input.members
+    : input.memberNames.map((name) => ({ ...input.row, name, role: "" }))
+  const { venue, rows } = eventDetailRows(
+    { ...input.row, team_id_display: input.teamIdDisplay || input.row.team_id_display },
+    people,
+  )
+  const inPerson = venue.key !== "online"
+  const rules = inPerson
+    ? "No entry without this QR code. Bring a government ID. You must carry it."
+    : "Keep this QR. It is your team pass for the online edition."
+  const arrive = inPerson
+    ? "Reach the location by 8:40."
+    : "Be online and ready by 8:40."
+  const inner = `<tr><td class="pad" style="padding:28px 28px 8px;font-family:${FONT};color:#1a1a1a;">
+    <p style="margin:0;font-size:16px;line-height:1.5;">${escapeHtml(teamGreeting(input.row, people))}</p>
+    <p style="margin:16px 0 0;font-size:16px;line-height:1.55;">You're confirmed for <strong>Fetch-A-Thon 3.0</strong>. Your team QR is below. ${escapeHtml(arrive)}</p>
+    <p style="margin:28px 0 16px;font-size:32px;line-height:1.15;font-weight:500;color:#111;">Fetch-A-Thon 3.0</p>
+    ${eventDateBox()}
+    <p style="margin:22px 0 12px;font-size:18px;line-height:1.3;font-weight:700;">Entry rules</p>
+    ${messageBox(`<p style="margin:0;padding:12px 14px;font-family:${FONT};font-size:15px;line-height:1.55;color:#222;">${escapeHtml(rules)} One QR is for the whole team.</p>`)}
+    <p style="margin:22px 0 12px;font-size:18px;line-height:1.3;font-weight:700;text-align:center;">Your team QR</p>
+    <p style="margin:0 0 12px;font-size:14px;line-height:1.5;color:#6b6b6b;text-align:center;">${escapeHtml(input.teamIdDisplay || "Solo")} · ${escapeHtml(venue.label)}</p>
+    <img src="cid:teamqr" width="240" alt="Team venue QR" style="display:block;width:240px;height:auto;margin:0 auto 8px;border:0;background:#ffffff;">
+    <p style="margin:22px 0 12px;font-size:18px;line-height:1.3;font-weight:700;">Agenda</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #ececec;border-radius:8px;">
+      ${agendaTable(inPerson)}
+    </table>
+    <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#222;">There is a gaming activity on the day as well. Join in between builds.</p>
+    <p style="margin:22px 0 14px;font-size:18px;line-height:1.3;font-weight:700;text-align:center;">Your details</p>
+    ${messageBox(`${fitTable(rows)}${prizeFitTable()}`)}
+    <p style="margin:22px 0 8px;font-size:18px;line-height:1.3;font-weight:700;">If you have any doubt</p>
+    <p style="margin:0;font-size:15px;line-height:1.6;color:#222;">${escapeHtml(DISCORD_NOTE)}<br>${textLink(discordInviteUrl(), "Join Discord")}</p>
+    <p style="margin:10px 0 0;font-size:15px;line-height:1.6;color:#222;">Email ${textLink(`mailto:${HELP_EMAIL}`, HELP_EMAIL)}<br>LinkedIn ${textLink(HELP_LINKEDIN, "gautammanak1")}</p>
+    <p style="margin:22px 0 0;font-size:15px;line-height:1.5;color:#222;">Regards,</p>
+    <p style="margin:4px 0 0;font-size:15px;line-height:1.5;font-weight:700;color:#222;">Fetch.ai Innovation Lab</p>
+    <p style="margin:14px 0 0;font-size:15px;line-height:1.5;color:#222;">Thank you</p>
+  </td></tr>`
+  return wrapEmail(qrSubject(input.teamIdDisplay, venue.label), `${inner}${mailFooter()}`)
 }
 
 const PRIZE_LINE = /^(.+?):\s*(₹[\d,]+)\s*[—–-]\s*(.+)$/

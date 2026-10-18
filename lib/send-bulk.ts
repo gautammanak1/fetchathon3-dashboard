@@ -207,18 +207,20 @@ export async function sendTeamQrEmails(
             to: group.to.email,
             toName: group.to.name,
             cc: group.cc.map((item) => item.email),
-            subject: qrSubject(record.team_id_display),
+            subject: qrSubject(record.team_id_display, record.venue),
             text: qrText({
               row: group.primary,
               teamIdDisplay: record.team_id_display,
               venue: record.venue,
               memberNames,
+              members: group.members,
             }),
             html: qrHtml({
               row: group.primary,
               teamIdDisplay: record.team_id_display,
               venue: record.venue,
               memberNames,
+              members: group.members,
             }),
             attachments: [
               {
@@ -344,22 +346,30 @@ export async function sendTestInboxEmails(kinds: Array<"registration" | "rsvp" |
       generated_at: new Date().toISOString(),
       sent_at: null,
     }
+    const qrRow = { ...row, city: "Gurugram", metro: "Gurugram" }
+    const qrMembers = [
+      qrRow,
+      { ...qrRow, name: "Teammate Two", role: "Member" },
+      { ...qrRow, name: "Teammate Three", role: "Member" },
+    ]
     const image = await teamQrImage(record)
     await sendSmtpMail({
       to,
-      toName: row.name,
-      subject: qrSubject(record.team_id_display),
+      toName: qrRow.name,
+      subject: qrSubject(record.team_id_display, "Masters' Union Gurugram"),
       text: qrText({
-        row,
+        row: qrRow,
         teamIdDisplay: record.team_id_display,
-        venue: record.venue,
-        memberNames: [row.name, "Teammate Two", "Teammate Three"],
+        venue: "Masters' Union Gurugram",
+        memberNames: qrMembers.map((member) => member.name),
+        members: qrMembers,
       }),
       html: qrHtml({
-        row,
+        row: qrRow,
         teamIdDisplay: record.team_id_display,
-        venue: record.venue,
-        memberNames: [row.name, "Teammate Two", "Teammate Three"],
+        venue: "Masters' Union Gurugram",
+        memberNames: qrMembers.map((member) => member.name),
+        members: qrMembers,
       }),
       attachments: [
         {
