@@ -5,7 +5,7 @@ import { mailVenue } from "@/lib/event-venues"
 import { mailMeta, persistMailRecords } from "@/lib/mail-db"
 import { teamPassUrl } from "@/lib/pass-url"
 import { requireAdmin } from "@/lib/require-admin"
-import { findRegistration, loadRoster } from "@/lib/roster"
+import { findRegistration, loadRoster, loadRosterFast } from "@/lib/roster"
 import { resultNote, sendTeamQrEmails } from "@/lib/send-bulk"
 import { isSmtpConfigured } from "@/lib/smtp"
 import { teamMailGroups } from "@/lib/team-mail"
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Select at least one person" }, { status: 400 })
   }
 
-  const roster = await loadRoster()
+  const roster = await loadRosterFast()
   const selected = ids
     .map((id) => findRegistration(roster, id))
     .filter((row): row is NonNullable<typeof row> => Boolean(row))

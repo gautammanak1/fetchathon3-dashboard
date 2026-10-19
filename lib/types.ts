@@ -40,6 +40,7 @@ export type Registration = {
   reject_status: "none" | "sent"
   reject_sent_at: string | null
   reject_count: number
+  review_status: "pending" | "reviewed"
   property_types: Record<string, string>
 }
 

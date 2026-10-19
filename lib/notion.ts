@@ -211,6 +211,7 @@ export function registrationFromNotionPage(
   | "reject_sent_at"
   | "reject_count"
   | "qr_count"
+  | "review_status"
 > {
   const props = (page.properties || {}) as Record<string, unknown>
   const map = fields()

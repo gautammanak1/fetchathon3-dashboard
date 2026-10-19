@@ -11,7 +11,7 @@ export function db() {
     globalForDb.fetchathonSql = postgres(url, {
       prepare: false,
       ssl: "require",
-      max: 1,
+      max: 4,
       idle_timeout: 20,
       connect_timeout: 10,
     })

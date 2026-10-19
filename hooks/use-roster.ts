@@ -3,7 +3,15 @@
 import * as React from "react"
 import { toast } from "sonner"
 
-import type { RosterPayload } from "@/lib/types"
+import type { Registration, RosterPayload } from "@/lib/types"
+
+export type ActionPayload = {
+  error?: string
+  note?: string
+  sentIds?: string[]
+  count?: number
+  sent?: number
+}
 
 export function useRoster(initial?: RosterPayload | null) {
   const [data, setData] = React.useState<RosterPayload | null>(initial ?? null)
@@ -28,6 +36,22 @@ export function useRoster(initial?: RosterPayload | null) {
     }
   }, [])
 
+  const patchPeople = React.useCallback((ids: string[], patch: Partial<Registration>) => {
+    const chosen = new Set(ids)
+    setData((current) => {
+      if (!current) return current
+      const mapRow = (row: Registration) => (chosen.has(row.id) ? { ...row, ...patch } : row)
+      return {
+        ...current,
+        registrations: current.registrations.map(mapRow),
+        teams: current.teams.map((team) => ({
+          ...team,
+          members: team.members.map(mapRow),
+        })),
+      }
+    })
+  }, [])
+
   React.useEffect(() => {
     if (initial) return
     void refresh()
@@ -38,23 +62,24 @@ export function useRoster(initial?: RosterPayload | null) {
       url: string,
       body: Record<string, unknown>,
       success: string,
+      options?: { refresh?: boolean },
     ) => {
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      const payload = (await response.json()) as { error?: string; note?: string }
+      const payload = (await response.json()) as ActionPayload
       if (!response.ok) {
         toast.error(payload.error || "Action failed")
-        return false
+        return null
       }
       toast.success(payload.note || success)
-      await refresh()
-      return true
+      if (options?.refresh !== false) await refresh()
+      return payload
     },
     [refresh],
   )
 
-  return { data, loading, error, refresh, runAction }
+  return { data, loading, error, refresh, runAction, patchPeople }
 }

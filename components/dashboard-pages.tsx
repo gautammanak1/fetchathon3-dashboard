@@ -24,6 +24,7 @@ import { useRoster } from "@/hooks/use-roster"
 import { EMPTY_FILTERS, filterRegistrations } from "@/lib/filters"
 import type { RosterPayload } from "@/lib/types"
 import * as React from "react"
+import { toast } from "sonner"
 
 function TestInboxButton({
   busy,
@@ -109,7 +110,7 @@ export function RegistrationsPage() {
   ) => {
     setBusy(true)
     try {
-      return await runAction(url, body, success)
+      return Boolean(await runAction(url, body, success))
     } finally {
       setBusy(false)
     }
@@ -167,7 +168,7 @@ export function TeamsPage({
 }: {
   initial?: RosterPayload | null
 }) {
-  const { data, loading, error, runAction } = useRoster(initial)
+  const { data, loading, error, runAction, patchPeople } = useRoster(initial)
   const { isAdmin } = useAuth()
   const [filters, setFilters] = React.useState(EMPTY_FILTERS)
   const [busy, setBusy] = React.useState(false)
@@ -176,10 +177,31 @@ export function TeamsPage({
     url: string,
     body: Record<string, unknown>,
     success: string,
+    options?: { refresh?: boolean },
   ) => {
     setBusy(true)
     try {
-      return await runAction(url, body, success)
+      return await runAction(url, body, success, options)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const markReview = async (ids: string[], status: "pending" | "reviewed") => {
+    setBusy(true)
+    try {
+      const response = await fetch("/api/actions/review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids, status }),
+      })
+      const payload = (await response.json()) as { error?: string; note?: string }
+      if (!response.ok) {
+        toast.error(payload.error || "Could not update review")
+        return
+      }
+      patchPeople(ids, { review_status: status })
+      toast.success(payload.note || "Review updated")
     } finally {
       setBusy(false)
     }
@@ -211,27 +233,49 @@ export function TeamsPage({
             teams={teams}
             canManage={isAdmin}
             busy={busy}
-            onRsvp={(ids, force) =>
-              act(
+            onMarkReview={(ids, status) => markReview(ids, status)}
+            onRsvp={async (ids) => {
+              const payload = await act(
                 "/api/actions/rsvp",
-                { ids, force },
-                force ? "RSVP resent for this team" : "RSVP sent for this team",
+                { ids },
+                "RSVP sent",
+                { refresh: false },
               )
-            }
-            onReject={(ids, force) =>
-              act(
+              if (payload?.sentIds?.length) {
+                patchPeople(payload.sentIds, {
+                  rsvp_status: "sent",
+                  rsvp_sent_at: new Date().toISOString(),
+                })
+              }
+            }}
+            onReject={async (ids, force) => {
+              const payload = await act(
                 "/api/actions/reject",
                 { ids, force },
                 force ? "Reject mail resent" : "Reject mail sent",
+                { refresh: false },
               )
-            }
-            onSendQr={(ids, force) =>
-              act(
+              if (payload?.sentIds?.length) {
+                patchPeople(payload.sentIds, {
+                  reject_status: "sent",
+                  reject_sent_at: new Date().toISOString(),
+                })
+              }
+            }}
+            onSendQr={async (ids, force) => {
+              const payload = await act(
                 "/api/actions/qr",
                 { ids, mode: "send", force },
                 force ? "Team QR resent" : "Team QR sent",
+                { refresh: false },
               )
-            }
+              if (payload?.sentIds?.length) {
+                patchPeople(payload.sentIds, {
+                  qr_status: "sent",
+                  qr_sent_at: new Date().toISOString(),
+                })
+              }
+            }}
           />
         </>
       ) : null}
@@ -250,7 +294,7 @@ export function ActionsPage() {
   ) => {
     setBusy(true)
     try {
-      return await runAction(url, body, success)
+      return Boolean(await runAction(url, body, success))
     } finally {
       setBusy(false)
     }

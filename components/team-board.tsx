@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Sheet,
@@ -86,7 +87,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid min-w-0 gap-0.5">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={`text-sm break-words ${text ? "" : "text-muted-foreground"}`}>
+      <dd className={`min-w-0 text-sm break-all [overflow-wrap:anywhere] ${text ? "" : "text-muted-foreground"}`}>
         {target ? (
           <a
             href={target}
@@ -122,14 +123,28 @@ function Pill({
   )
 }
 
-function rsvpPill(member: Registration) {
+function rsvpPill(member: Registration, compact = false) {
   if (member.rsvp_status === "confirmed") {
-    return <Pill tone="ok">Confirmed — they clicked I&apos;m in</Pill>
+    return <Pill tone="ok">{compact ? "Confirmed" : "Confirmed — they clicked I'm in"}</Pill>
   }
   if (member.rsvp_status === "sent") {
-    return <Pill tone="wait">Invite mailed — waiting for I&apos;m in</Pill>
+    return <Pill tone="wait">{compact ? "RSVP mailed" : "RSVP mailed"}</Pill>
   }
-  return <Pill tone="muted">RSVP not mailed</Pill>
+  return <Pill tone="muted">{compact ? "Not mailed" : "RSVP not mailed"}</Pill>
+}
+
+function reviewPill(member: Registration) {
+  if (member.review_status === "reviewed") return <Pill tone="ok">Reviewed</Pill>
+  return <Pill tone="warn">Review pending</Pill>
+}
+
+function bucketOf(team: Team) {
+  const people = team.members
+  if (people.length > 0 && people.every((person) => person.rsvp_status !== "none")) return "sent"
+  if (people.length > 0 && people.every((person) => person.review_status === "reviewed")) {
+    return "reviewed"
+  }
+  return "pending"
 }
 
 function rejectPill(member: Registration) {
@@ -154,6 +169,7 @@ export function TeamBoard({
   teams,
   canManage = false,
   busy = false,
+  onMarkReview,
   onRsvp,
   onReject,
   onSendQr,
@@ -161,12 +177,37 @@ export function TeamBoard({
   teams: Team[]
   canManage?: boolean
   busy?: boolean
+  onMarkReview?: (ids: string[], status: "pending" | "reviewed") => void
   onRsvp?: (ids: string[], force?: boolean) => void
   onReject?: (ids: string[], force?: boolean) => void
   onSendQr?: (ids: string[], force?: boolean) => void
 }) {
   const [openId, setOpenId] = React.useState<string | null>(null)
+  const [picked, setPicked] = React.useState<string[]>([])
   const selected = teams.find((team) => teamKey(team) === openId) || null
+  const pickedSet = new Set(picked)
+  const pending = teams.filter((team) => bucketOf(team) === "pending")
+  const reviewed = teams.filter((team) => bucketOf(team) === "reviewed")
+  const sent = teams.filter((team) => bucketOf(team) === "sent")
+  const pickedTeams = teams.filter((team) => pickedSet.has(teamKey(team)))
+  const markIds = pickedTeams
+    .filter((team) => bucketOf(team) === "pending")
+    .flatMap((team) => team.members.map((member) => member.id))
+  const unmarkIds = pickedTeams
+    .filter((team) => bucketOf(team) === "reviewed")
+    .flatMap((team) => team.members.map((member) => member.id))
+  const sendIds = reviewed.flatMap((team) =>
+    team.members.filter((member) => member.rsvp_status === "none").map((member) => member.id),
+  )
+
+  const toggle = (key: string, on: boolean) => {
+    setPicked((current) => {
+      const next = new Set(current)
+      if (on) next.add(key)
+      else next.delete(key)
+      return [...next]
+    })
+  }
 
   if (teams.length === 0) {
     return (
@@ -177,70 +218,214 @@ export function TeamBoard({
   }
 
   return (
-    <div className="font-normal font-sans antialiased">
-      <div className="grid gap-4 px-4 md:grid-cols-2 xl:grid-cols-3 lg:px-6">
-        {teams.map((team) => {
-          const people = peopleOf(team)
-          const venue = mailVenue(team.location, team.metro)
-          const confirmed = people.filter((person) => person.rsvp_status === "confirmed").length
-          return (
-            <Card
-              key={teamKey(team)}
-              role="button"
-              tabIndex={0}
-              className="cursor-pointer transition-colors hover:bg-accent/40"
-              onClick={() => setOpenId(teamKey(team))}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault()
-                  setOpenId(teamKey(team))
-                }
-              }}
-            >
-              <CardHeader className="gap-2">
-                <div className="flex items-start justify-between gap-2">
-                  <CardTitle className="font-normal font-sans text-base">
-                    {people.length} {people.length === 1 ? "person" : "people"}
-                  </CardTitle>
-                  <Badge variant="outline">{team.team_id_display || "No team id"}</Badge>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  {venue.label}
-                  {confirmed ? ` · ${confirmed} confirmed` : ""}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <ul className="grid gap-2">
-                  {people.map((person) => (
-                    <li key={person.id} className="flex items-center gap-3">
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs">
-                        {initial(person.name)}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm">{person.name || "Untitled"}</span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {person.role || "Role not added"}
-                          {person.organization ? ` · ${person.organization}` : ""}
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
+    <div className="grid gap-8 font-normal font-sans antialiased">
+      {canManage ? (
+        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b bg-background/95 px-4 py-3 backdrop-blur lg:px-6">
+          <Button
+            disabled={busy || markIds.length === 0 || !onMarkReview}
+            onClick={() => {
+              onMarkReview?.(markIds, "reviewed")
+              setPicked([])
+            }}
+          >
+            Mark reviewed{markIds.length ? ` (${markIds.length})` : ""}
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={busy || sendIds.length === 0 || !onRsvp}>
+                Send RSVP{sendIds.length ? ` (${sendIds.length})` : ""}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Send RSVP to reviewed teams?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This mails {sendIds.length} {sendIds.length === 1 ? "person" : "people"} in
+                  Reviewed who have not received an RSVP. Anyone already mailed is left out.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    onRsvp?.(sendIds, false)
+                    setPicked([])
+                  }}
+                >
+                  Send RSVP
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button
+            variant="outline"
+            disabled={busy || unmarkIds.length === 0 || !onMarkReview}
+            onClick={() => {
+              onMarkReview?.(unmarkIds, "pending")
+              setPicked([])
+            }}
+          >
+            Back to pending
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            Select teams, mark them reviewed, then send RSVP once.
+          </p>
+        </div>
+      ) : null}
+
+      <TeamSection
+        title="Review pending"
+        hint="Not reviewed yet. Select a team and mark it before the RSVP goes out."
+        teams={pending}
+        picked={pickedSet}
+        onToggle={toggle}
+        onOpen={setOpenId}
+      />
+      <TeamSection
+        title="Reviewed"
+        hint="Ready for the RSVP button above. People already mailed stay marked and are skipped."
+        teams={reviewed}
+        picked={pickedSet}
+        onToggle={toggle}
+        onOpen={setOpenId}
+      />
+      <TeamSection
+        title="RSVP sent"
+        hint="Every person on these teams already has an RSVP mail or has confirmed."
+        teams={sent}
+        picked={pickedSet}
+        onToggle={toggle}
+        onOpen={setOpenId}
+      />
+
       <TeamSheet
         team={selected}
         canManage={canManage}
         busy={busy}
         onClose={() => setOpenId(null)}
-        onRsvp={onRsvp}
+        onMarkReview={onMarkReview}
         onReject={onReject}
         onSendQr={onSendQr}
       />
     </div>
+  )
+}
+
+function TeamSection({
+  title,
+  hint,
+  teams,
+  picked,
+  onToggle,
+  onOpen,
+}: {
+  title: string
+  hint: string
+  teams: Team[]
+  picked: Set<string>
+  onToggle: (key: string, on: boolean) => void
+  onOpen: (key: string) => void
+}) {
+  return (
+    <section className="grid gap-3">
+      <div className="px-4 lg:px-6">
+        <h2 className="text-sm">
+          {title}
+          <span className="ml-2 text-muted-foreground">{teams.length}</span>
+        </h2>
+        <p className="text-sm text-muted-foreground">{hint}</p>
+      </div>
+      {teams.length === 0 ? (
+        <p className="px-4 text-sm text-muted-foreground lg:px-6">None in this section.</p>
+      ) : (
+        <div className="grid gap-4 px-4 md:grid-cols-2 xl:grid-cols-3 lg:px-6">
+          {teams.map((team) => (
+            <TeamCard
+              key={teamKey(team)}
+              team={team}
+              picked={picked.has(teamKey(team))}
+              onToggle={onToggle}
+              onOpen={onOpen}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function TeamCard({
+  team,
+  picked,
+  onToggle,
+  onOpen,
+}: {
+  team: Team
+  picked: boolean
+  onToggle: (key: string, on: boolean) => void
+  onOpen: (key: string) => void
+}) {
+  const key = teamKey(team)
+  const people = peopleOf(team)
+  const venue = mailVenue(team.location, team.metro)
+  const mailed = people.filter((person) => person.rsvp_status === "sent").length
+  const confirmed = people.filter((person) => person.rsvp_status === "confirmed").length
+  const waiting = people.filter((person) => person.rsvp_status === "none").length
+  return (
+    <Card
+      role="button"
+      tabIndex={0}
+      className="cursor-pointer transition-colors hover:bg-accent/40"
+      onClick={() => onOpen(key)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onOpen(key)
+        }
+      }}
+    >
+      <CardHeader className="gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <Checkbox
+              checked={picked}
+              onClick={(event) => event.stopPropagation()}
+              onCheckedChange={(value) => onToggle(key, value === true)}
+              aria-label={`Select ${team.team_id_display || "team"}`}
+            />
+            <CardTitle className="font-normal font-sans text-base">
+              {people.length} {people.length === 1 ? "person" : "people"}
+            </CardTitle>
+          </div>
+          <Badge variant="outline">{team.team_id_display || "No team id"}</Badge>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {venue.label}
+          {mailed ? ` · ${mailed} RSVP mailed` : ""}
+          {confirmed ? ` · ${confirmed} confirmed` : ""}
+          {waiting ? ` · ${waiting} not mailed` : ""}
+        </p>
+      </CardHeader>
+      <CardContent>
+        <ul className="grid gap-2">
+          {people.map((person) => (
+            <li key={person.id} className="flex items-center gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs">
+                {initial(person.name)}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm">{person.name || "Untitled"}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {person.role || "Role not added"}
+                  {person.organization ? ` · ${person.organization}` : ""}
+                </span>
+              </span>
+              <span className="shrink-0">{rsvpPill(person, true)}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   )
 }
 
@@ -249,7 +434,7 @@ function TeamSheet({
   canManage,
   busy,
   onClose,
-  onRsvp,
+  onMarkReview,
   onReject,
   onSendQr,
 }: {
@@ -257,15 +442,14 @@ function TeamSheet({
   canManage: boolean
   busy: boolean
   onClose: () => void
-  onRsvp?: (ids: string[], force?: boolean) => void
+  onMarkReview?: (ids: string[], status: "pending" | "reviewed") => void
   onReject?: (ids: string[], force?: boolean) => void
   onSendQr?: (ids: string[], force?: boolean) => void
 }) {
   const venue = team ? mailVenue(team.location, team.metro) : null
   const people = team ? peopleOf(team) : []
   const ids = people.map((member) => member.id)
-  const rsvpPending = people.filter((member) => member.rsvp_status === "none")
-  const rsvpAlready = people.length - rsvpPending.length
+  const reviewed = people.length > 0 && people.every((member) => member.review_status === "reviewed")
   const rejectSent = people.some((member) => member.reject_status === "sent")
   const qrSent = people.some((member) => member.qr_status === "sent")
   const registeredAs =
@@ -316,32 +500,12 @@ function TeamSheet({
 
               {canManage ? (
                 <div className="grid gap-2 sm:grid-cols-3">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button disabled={busy || !onRsvp || rsvpPending.length === 0}>
-                        {rsvpPending.length === 0 ? "RSVP already sent" : "Send RSVP"}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Send this team&apos;s RSVP?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          The mail goes to {rsvpPending.length}{" "}
-                          {rsvpPending.length === 1 ? "person" : "people"} who have not received it.
-                          {rsvpAlready > 0
-                            ? ` ${rsvpAlready} already mailed ${rsvpAlready === 1 ? "person is" : "people are"} left out.`
-                            : ""}{" "}
-                          Location in the mail: {venue.label}.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => onRsvp?.(ids, false)}>
-                          Send RSVP
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+                  <Button
+                    disabled={busy || !onMarkReview}
+                    onClick={() => onMarkReview?.(ids, reviewed ? "pending" : "reviewed")}
+                  >
+                    {reviewed ? "Back to pending" : "Mark reviewed"}
+                  </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="outline" disabled={busy || !onReject}>
@@ -410,7 +574,7 @@ function PersonProfile({
   total: number
 }) {
   return (
-    <article className="grid gap-4 rounded-2xl border bg-card p-4">
+    <article className="grid min-w-0 gap-4 overflow-hidden rounded-2xl border bg-card p-4">
       <div className="flex items-start gap-3">
         <span className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted text-sm">
           {initial(member.name)}
@@ -425,12 +589,13 @@ function PersonProfile({
         </div>
       </div>
       <div className="flex flex-wrap gap-2">
+        {reviewPill(member)}
         {rsvpPill(member)}
         {rejectPill(member)}
         {qrPill(member)}
         {registrationPill(member)}
       </div>
-      <dl className="grid gap-3 sm:grid-cols-2">
+      <dl className="grid min-w-0 gap-3">
         {PROFILE_FIELDS.map(([key, label]) => (
           <Fact key={key} label={label} value={String(member[key] || "")} />
         ))}

@@ -9,6 +9,7 @@ export type MailPerson = ActionRecord & {
   email: string
   name: string
   team_id: string
+  review_status: "pending" | "reviewed"
 }
 
 type Store = Record<string, MailPerson>
@@ -36,6 +37,7 @@ function blank(partial?: Partial<MailPerson>): MailPerson {
     reject_status: "none",
     reject_sent_at: null,
     reject_count: 0,
+    review_status: "pending",
     ...partial,
   }
 }
@@ -90,6 +92,7 @@ function normalize(value: unknown): MailPerson | null {
     reject_status: item.reject_status === "sent" ? "sent" : "none",
     reject_sent_at: item.reject_sent_at || null,
     reject_count: Number(item.reject_count || 0),
+    review_status: item.review_status === "reviewed" ? "reviewed" : "pending",
   })
 }
 
@@ -128,6 +131,10 @@ function mergePerson(base: MailPerson, incoming: MailPerson): MailPerson {
       : base.reject_status,
     reject_sent_at: incoming.reject_sent_at || base.reject_sent_at,
     reject_count: Math.max(incoming.reject_count, base.reject_count),
+    review_status:
+      base.review_status === "reviewed" || incoming.review_status === "reviewed"
+        ? "reviewed"
+        : "pending",
   }
 }
 
@@ -267,6 +274,25 @@ async function saveStore(store: Store) {
 
 export async function getMailMap() {
   return loadStore()
+}
+
+export async function setReviewStatus(ids: string[], status: "pending" | "reviewed") {
+  const unique = [...new Set(ids.filter(Boolean))]
+  if (unique.length === 0) return []
+  const sql = db()
+  if (!sql) throw new Error("Supabase is not configured")
+  await sql`
+    update mail_people
+    set review_status = ${status}, updated_at = now()
+    where notion_id in ${sql(unique)}
+  `
+  if (memory) {
+    for (const id of unique) {
+      const prev = memory[id]
+      if (prev) memory[id] = { ...prev, review_status: status }
+    }
+  }
+  return unique
 }
 
 export async function syncPeopleProfiles(rows: Registration[]) {

@@ -306,6 +306,7 @@ function sampleTestRow(): Registration {
     reject_status: "none",
     reject_sent_at: null,
     reject_count: 0,
+    review_status: "pending",
     property_types: {},
   }
 }

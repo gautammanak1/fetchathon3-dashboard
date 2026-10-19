@@ -8,6 +8,7 @@ import {
   normalizeTeamId,
 } from "@/lib/fields"
 import { getActionMap } from "@/lib/actions-store"
+import { db, isoTime } from "@/lib/db"
 import { getMailMap, syncPeopleProfiles } from "@/lib/mail-db"
 import { getTeamQrMap, teamKey } from "@/lib/team-qr-store"
 import {
@@ -227,6 +228,7 @@ export async function loadRoster(): Promise<RosterPayload> {
         reject_status: "none",
         reject_sent_at: null,
         reject_count: 0,
+        review_status: mailDb[base.id]?.review_status === "reviewed" ? "reviewed" : "pending",
       },
       overlay[base.id],
     )
@@ -271,6 +273,87 @@ export async function loadRoster(): Promise<RosterPayload> {
     console.error("Could not save people profiles to Supabase", error)
   }
   return payload
+}
+
+function storedText(value: unknown) {
+  return String(value || "").trim()
+}
+
+function storedRegistration(row: Record<string, unknown>): Registration | null {
+  const id = storedText(row.notion_id)
+  if (!id) return null
+  const city = storedText(row.city)
+  const rsvp =
+    row.rsvp_status === "confirmed" || row.rsvp_status === "sent" ? row.rsvp_status : "none"
+  const qr =
+    row.qr_status === "sent" || row.qr_status === "generated" ? row.qr_status : "none"
+  return {
+    id,
+    name: storedText(row.name),
+    address: storedText(row.address),
+    email: storedText(row.email),
+    phone: storedText(row.phone),
+    role: storedText(row.role),
+    team_id: storedText(row.team_id),
+    team_id_display: formatTeamId(storedText(row.team_id)),
+    participation: storedText(row.participation),
+    are_you: storedText(row.are_you),
+    organization: storedText(row.organization),
+    city,
+    metro: deriveMetro(city),
+    skills: storedText(row.skills)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean),
+    experience: storedText(row.experience),
+    github: storedText(row.github),
+    linkedin: storedText(row.linkedin),
+    team_size: storedText(row.team_size),
+    registered_count: "",
+    seats_remaining: "",
+    team_status: "",
+    status: storedText(row.registration_status) || "Submitted",
+    created_at: isoTime(row.updated_at) || "",
+    registration_mail_status: row.registration_mail_status === "sent" ? "sent" : "none",
+    registration_mail_sent_at: isoTime(row.registration_mail_sent_at),
+    registration_mail_count: Number(row.registration_mail_count || 0),
+    rsvp_status: rsvp,
+    rsvp_sent_at: isoTime(row.rsvp_sent_at),
+    rsvp_count: Number(row.rsvp_count || 0),
+    qr_status: qr,
+    qr_token: storedText(row.qr_token) || null,
+    qr_generated_at: isoTime(row.qr_generated_at),
+    qr_sent_at: isoTime(row.qr_sent_at),
+    qr_count: Number(row.qr_count || 0),
+    reject_status: row.reject_status === "sent" ? "sent" : "none",
+    reject_sent_at: isoTime(row.reject_sent_at),
+    reject_count: Number(row.reject_count || 0),
+    review_status: row.review_status === "reviewed" ? "reviewed" : "pending",
+    property_types: {},
+  }
+}
+
+export async function loadStoredRoster(): Promise<RosterPayload | null> {
+  const sql = db()
+  if (!sql) return null
+  try {
+    const rows = await sql<Array<Record<string, unknown>>>`select * from mail_people`
+    const raw = rows
+      .map(storedRegistration)
+      .filter((row): row is Registration => Boolean(row))
+      .filter((row) => !isHiddenVenue(row.city, row.metro))
+    if (raw.length === 0) return null
+    return toPayload("notion", true, {}, raw)
+  } catch (error) {
+    console.error("stored roster failed", error)
+    return null
+  }
+}
+
+export async function loadRosterFast() {
+  const stored = await loadStoredRoster()
+  if (stored && stored.registrations.length > 0) return stored
+  return loadRoster()
 }
 
 export function findRegistration(roster: RosterPayload, id: string) {

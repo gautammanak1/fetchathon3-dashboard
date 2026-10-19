@@ -1,7 +1,7 @@
 import { readableName } from "@/lib/compose-mail"
 import { mailVenue } from "@/lib/event-venues"
 import { mailMeta, persistMailRecords } from "@/lib/mail-db"
-import { loadRoster } from "@/lib/roster"
+import { loadRosterFast } from "@/lib/roster"
 import { resultNote, sendRejectEmails, sendRsvpEmails } from "@/lib/send-bulk"
 import { EMAIL_RE } from "@/lib/smtp"
 import { teamMailGroups } from "@/lib/team-mail"
@@ -29,7 +29,7 @@ function matches(row: Registration, audience: ComposeAudience) {
 export async function sendOfficialTest(kind: "rsvp" | "reject", email: string) {
   let row: Registration | undefined
   try {
-    const roster = await loadRoster()
+    const roster = await loadRosterFast()
     row = roster.registrations.find((item) => item.email.trim().toLowerCase() === email.toLowerCase())
   } catch (error) {
     console.error("official test lookup failed", error)
@@ -72,6 +72,7 @@ export async function sendOfficialTest(kind: "rsvp" | "reject", email: string) {
     reject_status: "none",
     reject_sent_at: null,
     reject_count: 0,
+    review_status: "pending",
     property_types: {},
   }
   const group = {
@@ -95,7 +96,7 @@ export async function sendOfficialMail(input: {
   audience: ComposeAudience
   force?: boolean
 }) {
-  const roster = await loadRoster()
+  const roster = await loadRosterFast()
   const rows = roster.registrations.filter((row) => matches(row, input.audience))
   const groups = teamMailGroups(rows, roster.registrations).filter((group) => {
     if (input.kind === "rsvp") {
