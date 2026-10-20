@@ -140,6 +140,7 @@ function reviewPill(member: Registration) {
 
 function bucketOf(team: Team) {
   const people = team.members
+  if (people.length > 0 && people.every((person) => person.reject_status === "sent")) return "rejected"
   if (people.length > 0 && people.every((person) => person.rsvp_status !== "none")) return "sent"
   if (people.length > 0 && people.every((person) => person.review_status === "reviewed")) {
     return "reviewed"
@@ -184,11 +185,40 @@ export function TeamBoard({
 }) {
   const [openId, setOpenId] = React.useState<string | null>(null)
   const [picked, setPicked] = React.useState<string[]>([])
+  const [section, setSection] = React.useState<"pending" | "reviewed" | "sent" | "rejected">("pending")
   const selected = teams.find((team) => teamKey(team) === openId) || null
   const pickedSet = new Set(picked)
   const pending = teams.filter((team) => bucketOf(team) === "pending")
   const reviewed = teams.filter((team) => bucketOf(team) === "reviewed")
   const sent = teams.filter((team) => bucketOf(team) === "sent")
+  const rejected = teams.filter((team) => bucketOf(team) === "rejected")
+  const sections = [
+    {
+      id: "pending" as const,
+      title: "Review pending",
+      hint: "Not reviewed yet. Select a team and mark it before the RSVP goes out.",
+      teams: pending,
+    },
+    {
+      id: "reviewed" as const,
+      title: "Reviewed",
+      hint: "Ready for the RSVP button. People already mailed stay marked and are skipped.",
+      teams: reviewed,
+    },
+    {
+      id: "sent" as const,
+      title: "RSVP sent",
+      hint: "Every person on these teams already has an RSVP mail or has confirmed.",
+      teams: sent,
+    },
+    {
+      id: "rejected" as const,
+      title: "Reject mailed",
+      hint: "These teams already received the reject mail.",
+      teams: rejected,
+    },
+  ]
+  const active = sections.find((item) => item.id === section) || sections[0]
   const pickedTeams = teams.filter((team) => pickedSet.has(teamKey(team)))
   const markIds = pickedTeams
     .filter((team) => bucketOf(team) === "pending")
@@ -218,9 +248,23 @@ export function TeamBoard({
   }
 
   return (
-    <div className="grid gap-8 font-normal font-sans antialiased">
+    <div className="grid gap-4 font-normal font-sans antialiased">
+      <div className="sticky top-0 z-10 grid gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur lg:px-6">
+        <div className="flex flex-wrap gap-2">
+          {sections.map((item) => (
+            <Button
+              key={item.id}
+              size="sm"
+              variant={item.id === active.id ? "default" : "outline"}
+              onClick={() => setSection(item.id)}
+            >
+              {item.title}
+              <span className="ml-1 tabular-nums">{item.teams.length}</span>
+            </Button>
+          ))}
+        </div>
       {canManage ? (
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b bg-background/95 px-4 py-3 backdrop-blur lg:px-6">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             disabled={busy || markIds.length === 0 || !onMarkReview}
             onClick={() => {
@@ -272,27 +316,11 @@ export function TeamBoard({
           </p>
         </div>
       ) : null}
+      </div>
 
       <TeamSection
-        title="Review pending"
-        hint="Not reviewed yet. Select a team and mark it before the RSVP goes out."
-        teams={pending}
-        picked={pickedSet}
-        onToggle={toggle}
-        onOpen={setOpenId}
-      />
-      <TeamSection
-        title="Reviewed"
-        hint="Ready for the RSVP button above. People already mailed stay marked and are skipped."
-        teams={reviewed}
-        picked={pickedSet}
-        onToggle={toggle}
-        onOpen={setOpenId}
-      />
-      <TeamSection
-        title="RSVP sent"
-        hint="Every person on these teams already has an RSVP mail or has confirmed."
-        teams={sent}
+        hint={active.hint}
+        teams={active.teams}
         picked={pickedSet}
         onToggle={toggle}
         onOpen={setOpenId}
@@ -312,14 +340,12 @@ export function TeamBoard({
 }
 
 function TeamSection({
-  title,
   hint,
   teams,
   picked,
   onToggle,
   onOpen,
 }: {
-  title: string
   hint: string
   teams: Team[]
   picked: Set<string>
@@ -329,16 +355,12 @@ function TeamSection({
   return (
     <section className="grid gap-3">
       <div className="px-4 lg:px-6">
-        <h2 className="text-sm">
-          {title}
-          <span className="ml-2 text-muted-foreground">{teams.length}</span>
-        </h2>
         <p className="text-sm text-muted-foreground">{hint}</p>
       </div>
       {teams.length === 0 ? (
         <p className="px-4 text-sm text-muted-foreground lg:px-6">None in this section.</p>
       ) : (
-        <div className="grid gap-4 px-4 md:grid-cols-2 xl:grid-cols-3 lg:px-6">
+        <div className="grid gap-3 px-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 lg:px-6">
           {teams.map((team) => (
             <TeamCard
               key={teamKey(team)}
@@ -384,7 +406,7 @@ function TeamCard({
         }
       }}
     >
-      <CardHeader className="gap-2">
+      <CardHeader className="gap-1">
         <div className="flex items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <Checkbox
@@ -407,20 +429,17 @@ function TeamCard({
         </p>
       </CardHeader>
       <CardContent>
-        <ul className="grid gap-2">
+        <ul className="grid gap-1">
           {people.map((person) => (
-            <li key={person.id} className="flex items-center gap-3">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs">
-                {initial(person.name)}
+            <li key={person.id} className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sm">{person.name || "Untitled"}</span>
+              <span className="shrink-0">
+                {person.reject_status === "sent" ? (
+                  <Pill tone="warn">Rejected</Pill>
+                ) : (
+                  rsvpPill(person, true)
+                )}
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm">{person.name || "Untitled"}</span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {person.role || "Role not added"}
-                  {person.organization ? ` · ${person.organization}` : ""}
-                </span>
-              </span>
-              <span className="shrink-0">{rsvpPill(person, true)}</span>
             </li>
           ))}
         </ul>
