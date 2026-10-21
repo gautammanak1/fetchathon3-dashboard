@@ -262,11 +262,11 @@ export function TeamsPage({
                 })
               }
             }}
-            onSendQr={async (ids, force) => {
+            onSendQr={async (ids, force, onlySelected) => {
               const payload = await act(
                 "/api/actions/qr",
-                { ids, mode: "send", force },
-                force ? "Team QR resent" : "Team QR sent",
+                { ids, mode: "send", force, onlySelected },
+                force ? "Team QR resent" : "Confirm mail sent",
                 { refresh: false },
               )
               if (payload?.sentIds?.length) {

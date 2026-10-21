@@ -138,10 +138,19 @@ function reviewPill(member: Registration) {
   return <Pill tone="warn">Review pending</Pill>
 }
 
+function readyForConfirm(person: Registration) {
+  return (
+    person.reject_status !== "sent" &&
+    person.rsvp_status === "confirmed" &&
+    person.qr_status !== "sent"
+  )
+}
+
 function bucketOf(team: Team) {
   const people = team.members
   if (people.length > 0 && people.every((person) => person.reject_status === "sent")) return "rejected"
   if (people.length > 0 && people.every((person) => person.qr_status === "sent")) return "confirmed"
+  if (people.some(readyForConfirm)) return "rsvpConfirmed"
   if (people.length > 0 && people.every((person) => person.rsvp_status !== "none")) return "sent"
   if (people.length > 0 && people.every((person) => person.review_status === "reviewed")) {
     return "reviewed"
@@ -182,18 +191,19 @@ export function TeamBoard({
   onMarkReview?: (ids: string[], status: "pending" | "reviewed") => void
   onRsvp?: (ids: string[], force?: boolean) => void
   onReject?: (ids: string[], force?: boolean) => void
-  onSendQr?: (ids: string[], force?: boolean) => void
+  onSendQr?: (ids: string[], force?: boolean, onlySelected?: boolean) => void
 }) {
   const [openId, setOpenId] = React.useState<string | null>(null)
   const [picked, setPicked] = React.useState<string[]>([])
   const [section, setSection] = React.useState<
-    "pending" | "reviewed" | "sent" | "confirmed" | "rejected"
+    "pending" | "reviewed" | "sent" | "rsvpConfirmed" | "confirmed" | "rejected"
   >("pending")
   const selected = teams.find((team) => teamKey(team) === openId) || null
   const pickedSet = new Set(picked)
   const pending = teams.filter((team) => bucketOf(team) === "pending")
   const reviewed = teams.filter((team) => bucketOf(team) === "reviewed")
   const sent = teams.filter((team) => bucketOf(team) === "sent")
+  const rsvpConfirmed = teams.filter((team) => bucketOf(team) === "rsvpConfirmed")
   const confirmed = teams.filter((team) => bucketOf(team) === "confirmed")
   const rejected = teams.filter((team) => bucketOf(team) === "rejected")
   const sections = [
@@ -212,8 +222,14 @@ export function TeamBoard({
     {
       id: "sent" as const,
       title: "RSVP sent",
-      hint: "Every person on these teams already has an RSVP mail or has confirmed.",
+      hint: "These teams were mailed and are still waiting. Nobody here has confirmed yet.",
       teams: sent,
+    },
+    {
+      id: "rsvpConfirmed" as const,
+      title: "RSVP confirmed",
+      hint: "Someone on these teams clicked I'm in. Send confirm mails only those people.",
+      teams: rsvpConfirmed,
     },
     {
       id: "confirmed" as const,
@@ -238,6 +254,10 @@ export function TeamBoard({
     .flatMap((team) => team.members.map((member) => member.id))
   const sendIds = reviewed.flatMap((team) =>
     team.members.filter((member) => member.rsvp_status === "none").map((member) => member.id),
+  )
+  const confirmPool = pickedTeams.length ? pickedTeams : rsvpConfirmed
+  const confirmIds = confirmPool.flatMap((team) =>
+    team.members.filter(readyForConfirm).map((member) => member.id),
   )
 
   const toggle = (key: string, on: boolean) => {
@@ -321,8 +341,41 @@ export function TeamBoard({
           >
             Back to pending
           </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button disabled={busy || confirmIds.length === 0 || !onSendQr}>
+                Send confirm{confirmIds.length ? ` (${confirmIds.length})` : ""}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Send the confirm mail?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This sends the confirm mail and venue QR to {confirmIds.length}{" "}
+                  {confirmIds.length === 1 ? "person who has" : "people who have"} confirmed
+                  their RSVP
+                  {pickedTeams.length
+                    ? " on the selected teams"
+                    : " and have not received it yet"}
+                  . Each mail uses the location they chose. Anyone already mailed is left out.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    onSendQr?.(confirmIds, false, true)
+                    setPicked([])
+                  }}
+                >
+                  Send confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <p className="text-sm text-muted-foreground">
-            Select teams, mark them reviewed, then send RSVP once.
+            Select teams to limit a send. Send RSVP covers reviewed people. Send confirm covers
+            people who already clicked I&apos;m in.
           </p>
         </div>
       ) : null}
@@ -477,7 +530,7 @@ function TeamSheet({
   onClose: () => void
   onMarkReview?: (ids: string[], status: "pending" | "reviewed") => void
   onReject?: (ids: string[], force?: boolean) => void
-  onSendQr?: (ids: string[], force?: boolean) => void
+  onSendQr?: (ids: string[], force?: boolean, onlySelected?: boolean) => void
 }) {
   const venue = team ? mailVenue(team.location, team.metro) : null
   const people = team ? peopleOf(team) : []

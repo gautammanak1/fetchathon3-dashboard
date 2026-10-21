@@ -88,10 +88,12 @@ export async function POST(request: Request) {
     ids?: string[]
     mode?: "generate" | "send"
     force?: boolean
+    onlySelected?: boolean
   }
   const ids = [...new Set((body.ids || []).filter(Boolean))]
   const mode = body.mode === "send" ? "send" : "generate"
   const force = body.force === true
+  const onlySelected = body.onlySelected === true
   if (ids.length === 0) {
     return NextResponse.json({ error: "Select at least one person" }, { status: 400 })
   }
@@ -138,7 +140,13 @@ export async function POST(request: Request) {
     )
   }
 
-  const groups = teamMailGroups(selected, roster.registrations).filter((group) =>
+  const audience = onlySelected
+    ? selected.filter((row) => force || row.qr_status !== "sent")
+    : selected
+  const groups = teamMailGroups(
+    audience,
+    onlySelected ? audience : roster.registrations,
+  ).filter((group) =>
     force ? true : group.members.some((member) => member.qr_status !== "sent"),
   )
   if (groups.length === 0) {
