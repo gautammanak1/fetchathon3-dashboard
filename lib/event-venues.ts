@@ -24,13 +24,12 @@ export type MailVenue = {
 }
 
 export const PRIZES: Array<[string, string, string]> = [
-  ["National winners", "₹35,000", "Cash prize + internship interview"],
-  ["First winner", "₹25,000", "Cash prize + internship interview"],
-  ["2nd runner-up", "₹15,000", "Cash prize + internship interview"],
-  ["3rd runner-up", "₹10,000", "Cash prize + internship interview"],
-  ["Best multi-agent workflow", "₹5,000", "Cash prize"],
-  ["Best Agentverse deployment", "₹5,000", "Cash prize"],
-  ["Best personal AI", "₹5,000", "Cash prize"],
+  ["National Winners", "₹35,000", "Cash Prize + Internship Interview Opportunity"],
+  ["First Runner-up", "₹25,000", "Cash Prize + Internship Interview Opportunity"],
+  ["2nd Runner-up", "₹15,000", "Cash Prize + Internship Interview Opportunity"],
+  ["Best Multi-Agent Workflow X2", "₹5,000", "Cash Prize"],
+  ["Best Agentverse Deployment X2", "₹5,000", "Cash Prize"],
+  ["Best Personal AI", "₹5,000", "Cash Prize"],
 ]
 
 export function mailVenue(city: string, metro = ""): MailVenue {
