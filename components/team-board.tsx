@@ -534,6 +534,28 @@ function TeamSheet({
 }) {
   const venue = team ? mailVenue(team.location, team.metro) : null
   const people = team ? peopleOf(team) : []
+  const [editNote, setEditNote] = React.useState<string | null>(null)
+  const copyEditLink = async () => {
+    const id = people[0]?.id
+    if (!id) return
+    setEditNote(null)
+    const response = await fetch("/api/team-edit/link", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    })
+    const payload = (await response.json()) as { url?: string; error?: string }
+    if (!response.ok || !payload.url) {
+      setEditNote(payload.error || "Could not make the team link")
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(payload.url)
+      setEditNote("Team edit link copied.")
+    } catch {
+      setEditNote(payload.url)
+    }
+  }
   const ids = people.map((member) => member.id)
   const reviewed = people.length > 0 && people.every((member) => member.review_status === "reviewed")
   const rejectSent = people.some((member) => member.reject_status === "sent")
@@ -585,6 +607,15 @@ function TeamSheet({
               </section>
 
               {canManage ? (
+                <div className="grid gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button type="button" variant="outline" onClick={() => void copyEditLink()}>
+                      Copy team edit link
+                    </Button>
+                    {editNote ? (
+                      <p className="min-w-0 text-sm break-all text-muted-foreground">{editNote}</p>
+                    ) : null}
+                  </div>
                 <div className="grid gap-2 sm:grid-cols-3">
                   <Button
                     disabled={busy || !onMarkReview}
@@ -640,6 +671,7 @@ function TeamSheet({
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+                </div>
                 </div>
               ) : null}
             </div>

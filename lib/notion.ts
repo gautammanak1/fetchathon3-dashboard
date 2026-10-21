@@ -366,6 +366,123 @@ export async function ensureNotionCheckInField(schema: Record<string, string>) {
   return { ...schema, "Check-in": "checkbox" }
 }
 
+const SKIP_PROPERTY = new Set([
+  "formula",
+  "rollup",
+  "created_time",
+  "last_edited_time",
+  "created_by",
+  "last_edited_by",
+  "unique_id",
+  "relation",
+  "people",
+  "files",
+  "button",
+  "verification",
+  "place",
+])
+
+function writableProperty(prop: unknown) {
+  if (!prop || typeof prop !== "object") return null
+  const item = prop as Record<string, unknown>
+  const type = String(item.type || "")
+  if (!type || SKIP_PROPERTY.has(type) || !(type in item)) return null
+  return { [type]: item[type] }
+}
+
+function textProperty(type: string, text: string) {
+  const value = text.trim()
+  if (type === "title") {
+    return { title: value ? [{ text: { content: value.slice(0, 2000) } }] : [] }
+  }
+  if (type === "rich_text") {
+    return { rich_text: value ? [{ text: { content: value.slice(0, 2000) } }] : [] }
+  }
+  if (type === "email") return { email: value || null }
+  if (type === "phone_number") return { phone_number: value || null }
+  if (type === "select") return value ? { select: { name: value } } : { select: null }
+  if (type === "status") return value ? { status: { name: value } } : { status: null }
+  if (type === "url") return value ? { url: value } : { url: null }
+  if (type === "number") {
+    const parsed = Number(value)
+    return { number: Number.isFinite(parsed) ? parsed : null }
+  }
+  return null
+}
+
+async function readNotionPage(pageId: string) {
+  const response = await fetch(`${NOTION_API}/pages/${pageId}`, {
+    headers: headers(),
+    cache: "no-store",
+  })
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`Notion page HTTP ${response.status}: ${body.slice(0, 200)}`)
+  }
+  return (await response.json()) as { properties?: Record<string, unknown> }
+}
+
+export async function createNotionTeamMember(
+  sourcePageId: string,
+  input: { name: string; email: string; phone: string },
+) {
+  const page = await readNotionPage(sourcePageId)
+  const source = page.properties || {}
+  const schema = Object.fromEntries(
+    Object.entries(source).map(([name, prop]) => [
+      name,
+      String((prop as { type?: string })?.type || ""),
+    ]),
+  )
+  const map = fields()
+  const properties: Record<string, unknown> = {}
+  for (const [name, prop] of Object.entries(source)) {
+    const shaped = writableProperty(prop)
+    if (shaped) properties[name] = shaped
+  }
+  const write = (key: keyof ReturnType<typeof fields>, text: string) => {
+    const column = schemaColumn(schema, [map[key]])
+    if (!column) return
+    const shaped = textProperty(schema[column], text)
+    if (shaped) properties[column] = shaped
+  }
+  write("name", input.name)
+  write("email", input.email)
+  write("phone", input.phone)
+  write("role", "Member")
+  const dbId = extractDatabaseId(databaseRef())
+  const response = await fetch(`${NOTION_API}/pages`, {
+    method: "POST",
+    headers: headers(),
+    cache: "no-store",
+    body: JSON.stringify({
+      parent: { database_id: dbId },
+      properties,
+    }),
+  })
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`Notion create HTTP ${response.status}: ${body.slice(0, 240)}`)
+  }
+  const created = (await response.json()) as { id?: string }
+  if (!created.id) throw new Error("Notion did not return the new page")
+  return created.id
+}
+
+export async function archiveNotionPage(pageId: string) {
+  const response = await fetch(`${NOTION_API}/pages/${pageId}`, {
+    method: "PATCH",
+    headers: headers(),
+    cache: "no-store",
+    body: JSON.stringify({ archived: true }),
+  })
+  if (response.status === 404) return
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`Notion archive HTTP ${response.status}: ${body.slice(0, 200)}`)
+  }
+}
+
 export async function updateNotionCheckIn(
   pageId: string,
   at: string,

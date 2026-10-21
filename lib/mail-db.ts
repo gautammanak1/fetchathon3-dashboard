@@ -276,6 +276,52 @@ export async function getMailMap() {
   return loadStore()
 }
 
+export async function insertMailPerson(input: {
+  id: string
+  email: string
+  name: string
+  team_id: string
+  phone: string
+  role: string
+  organization: string
+  participation: string
+  city: string
+  registration_status: string
+}) {
+  const sql = db()
+  if (!sql) throw new Error("Supabase is not configured")
+  await sql`
+    insert into mail_people (
+      notion_id, email, name, team_id, phone, role, organization, participation, city, registration_status
+    ) values (
+      ${input.id},
+      ${input.email},
+      ${input.name},
+      ${input.team_id},
+      ${input.phone},
+      ${input.role},
+      ${input.organization},
+      ${input.participation},
+      ${input.city},
+      ${input.registration_status}
+    )
+  `
+  if (memory) {
+    memory[input.id] = blank({
+      email: input.email,
+      name: input.name,
+      team_id: input.team_id,
+    })
+  }
+}
+
+export async function deleteMailPerson(id: string) {
+  const sql = db()
+  if (!sql) throw new Error("Supabase is not configured")
+  await sql`delete from mail_people where notion_id = ${id}`
+  if (memory?.[id]) delete memory[id]
+}
+
 export async function setReviewStatus(ids: string[], status: "pending" | "reviewed") {
   const unique = [...new Set(ids.filter(Boolean))]
   if (unique.length === 0) return []
