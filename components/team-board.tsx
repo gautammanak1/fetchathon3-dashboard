@@ -1,7 +1,9 @@
 "use client"
 
 import * as React from "react"
+import { DownloadIcon } from "lucide-react"
 
+import { downloadCsv, venueCsvName } from "@/lib/csv"
 import { mailVenue } from "@/lib/event-venues"
 import type { Registration, Team } from "@/lib/types"
 import {
@@ -169,6 +171,47 @@ function qrPill(member: Registration) {
   return <Pill tone="muted">QR not sent</Pill>
 }
 
+type MailedExport = "rsvp" | "confirm"
+
+function wasMailed(person: Registration, kind: MailedExport) {
+  if (kind === "confirm") return person.qr_status === "sent"
+  return person.rsvp_status !== "none"
+}
+
+function mailedPeople(teams: Team[], kind: MailedExport) {
+  const seen = new Set<string>()
+  const people: Registration[] = []
+  for (const team of teams) {
+    for (const person of team.members) {
+      if (seen.has(person.id) || !wasMailed(person, kind)) continue
+      seen.add(person.id)
+      people.push(person)
+    }
+  }
+  return people
+}
+
+function mailedCsv(rows: Registration[]) {
+  return rows.map((row) => ({
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    role: row.role,
+    team: row.team_id_display,
+    organization: row.organization,
+    filled_location: row.city,
+    venue: mailVenue(row.city, row.metro).label,
+    rsvp: row.rsvp_status,
+    qr: row.qr_status,
+  }))
+}
+
+function mailedFile(kind: MailedExport, venue = "") {
+  const base = kind === "rsvp" ? "fetchathon-rsvp-mailed" : "fetchathon-confirm-mailed"
+  if (!venue) return `${base}.csv`
+  return venueCsvName(venue).replace(/^fetchathon-/, `${base}-`)
+}
+
 function registrationPill(member: Registration) {
   if (member.registration_mail_status === "sent") {
     return <Pill tone="ok">Registration mail sent</Pill>
@@ -198,6 +241,8 @@ export function TeamBoard({
   const [section, setSection] = React.useState<
     "pending" | "reviewed" | "sent" | "rsvpConfirmed" | "confirmed" | "rejected"
   >("pending")
+  const [mailExport, setMailExport] = React.useState<MailedExport>("rsvp")
+  const [exportVenue, setExportVenue] = React.useState("")
   const selected = teams.find((team) => teamKey(team) === openId) || null
   const pickedSet = new Set(picked)
   const pending = teams.filter((team) => bucketOf(team) === "pending")
@@ -259,6 +304,17 @@ export function TeamBoard({
   const confirmIds = confirmPool.flatMap((team) =>
     team.members.filter(readyForConfirm).map((member) => member.id),
   )
+  const mailed = React.useMemo(() => mailedPeople(teams, mailExport), [teams, mailExport])
+  const venueCounts = React.useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const person of mailed) {
+      const label = mailVenue(person.city, person.metro).label
+      counts.set(label, (counts.get(label) || 0) + 1)
+    }
+    return counts
+  }, [mailed])
+  const exportVenues = [...venueCounts.keys()].sort((a, b) => a.localeCompare(b))
+  const venueCount = exportVenue ? venueCounts.get(exportVenue) || 0 : 0
 
   const toggle = (key: string, on: boolean) => {
     setPicked((current) => {
@@ -292,6 +348,62 @@ export function TeamBoard({
               <span className="ml-1 tabular-nums">{item.teams.length}</span>
             </Button>
           ))}
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            value={mailExport}
+            onChange={(event) => {
+              setMailExport(event.target.value === "confirm" ? "confirm" : "rsvp")
+              setExportVenue("")
+            }}
+            aria-label="Which mailed people to download"
+          >
+            <option value="rsvp">RSVP mailed</option>
+            <option value="confirm">Confirm mailed</option>
+          </select>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={mailed.length === 0}
+            onClick={() => downloadCsv(mailedFile(mailExport), mailedCsv(mailed))}
+          >
+            <DownloadIcon />
+            Export all ({mailed.length})
+          </Button>
+          <select
+            className="h-8 max-w-full rounded-lg border border-input bg-transparent px-2.5 text-sm"
+            value={exportVenues.includes(exportVenue) ? exportVenue : ""}
+            onChange={(event) => setExportVenue(event.target.value)}
+            aria-label="Venue to download"
+          >
+            <option value="">Choose a venue</option>
+            {exportVenues.map((label) => (
+              <option key={label} value={label}>
+                {label} ({venueCounts.get(label)})
+              </option>
+            ))}
+          </select>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={venueCount === 0}
+            onClick={() =>
+              downloadCsv(
+                mailedFile(mailExport, exportVenue),
+                mailedCsv(
+                  mailed.filter(
+                    (person) => mailVenue(person.city, person.metro).label === exportVenue,
+                  ),
+                ),
+              )
+            }
+          >
+            <DownloadIcon />
+            Export venue{venueCount ? ` (${venueCount})` : ""}
+          </Button>
         </div>
       {canManage ? (
         <div className="flex flex-wrap items-center gap-2">
