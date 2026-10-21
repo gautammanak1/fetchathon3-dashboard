@@ -12,6 +12,8 @@ const MAPS = {
   gurugram: "https://maps.app.goo.gl/jp5cWD2jbc7hb4Yx7",
   jaipur: "https://maps.app.goo.gl/KzG4VgurLzQthoSD9",
   mandi: "https://maps.app.goo.gl/wA3ae8j95hAynnb76",
+  bengaluru:
+    "https://www.google.com/maps/search/?api=1&query=Presidency+University+Itgalpur+Rajanakunte+Yelahanka+Bengaluru",
 } as const
 
 export type MailVenue = {
@@ -65,7 +67,12 @@ export function mailVenue(city: string, metro = ""): MailVenue {
     }
   }
   if (text.includes("bengaluru") || text.includes("bangalore")) {
-    return { key: "bengaluru", label: "Bengaluru", mapUrl: null, note: "" }
+    return {
+      key: "bengaluru",
+      label: "Presidency University, Bengaluru",
+      mapUrl: MAPS.bengaluru,
+      note: "Itgalpur Rajanakunte, Yelahanka, Bengaluru",
+    }
   }
   const label = city.trim() || metro.trim() || "your venue"
   return { key: "other", label, mapUrl: null, note: "" }

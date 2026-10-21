@@ -8,9 +8,25 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useRoster } from "@/hooks/use-roster"
-import { downloadCsv } from "@/lib/csv"
+import { downloadCsv, venueCsvName } from "@/lib/csv"
+import { mailVenue } from "@/lib/event-venues"
 import { cn } from "cn"
 import type { Registration } from "@/lib/types"
+
+function mailLogCsv(rows: Registration[]) {
+  return rows.map((row) => ({
+    name: row.name,
+    email: row.email,
+    team: row.team_id_display,
+    filled_location: row.city,
+    venue: mailVenue(row.city, row.metro).label,
+    organization: row.organization,
+    registration: row.registration_mail_status,
+    rsvp: row.rsvp_status,
+    reject: row.reject_status,
+    qr: row.qr_status,
+  }))
+}
 
 type Choice = "all" | "sent" | "none" | "confirmed" | "generated"
 
@@ -107,7 +123,13 @@ function Chip({
 export function MailLogPage() {
   const { data, loading, error } = useRoster()
   const [filters, setFilters] = React.useState(EMPTY)
+  const [exportVenue, setExportVenue] = React.useState("")
   const rows = data?.registrations ?? []
+  const downloadVenues = React.useMemo(() => {
+    return [...new Set(rows.map((row) => mailVenue(row.city, row.metro).label))].sort((a, b) =>
+      a.localeCompare(b),
+    )
+  }, [rows])
 
   const venues = React.useMemo(() => {
     return [...new Set(rows.map((row) => row.city).filter(Boolean))].sort((a, b) =>
@@ -257,31 +279,46 @@ export function MailLogPage() {
               <p className="text-sm text-muted-foreground">
                 Showing {visible.length} of {counts.people}
               </p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap justify-end gap-2">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={visible.length === 0}
+                  disabled={rows.length === 0}
+                  onClick={() => downloadCsv("fetchathon-mail-log.csv", mailLogCsv(rows))}
+                >
+                  <DownloadIcon />
+                  Export all
+                </Button>
+                <select
+                  className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+                  value={exportVenue}
+                  onChange={(event) => setExportVenue(event.target.value)}
+                  aria-label="Venue to download"
+                >
+                  <option value="">Choose a venue</option>
+                  {downloadVenues.map((label) => (
+                    <option key={label} value={label}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!exportVenue}
                   onClick={() =>
                     downloadCsv(
-                      "fetchathon-mail-log.csv",
-                      visible.map((row) => ({
-                        name: row.name,
-                        email: row.email,
-                        team: row.team_id_display,
-                        location: row.city,
-                        organization: row.organization,
-                        registration: row.registration_mail_status,
-                        rsvp: row.rsvp_status,
-                        reject: row.reject_status,
-                        qr: row.qr_status,
-                      })),
+                      venueCsvName(exportVenue),
+                      mailLogCsv(
+                        rows.filter((row) => mailVenue(row.city, row.metro).label === exportVenue),
+                      ),
                     )
                   }
                 >
                   <DownloadIcon />
-                  Export CSV
+                  Export venue
                 </Button>
                 <Button
                   type="button"

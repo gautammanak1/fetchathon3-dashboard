@@ -1,3 +1,11 @@
+export function venueCsvName(label: string) {
+  const slug = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+  return `fetchathon-${slug || "venue"}.csv`
+}
+
 export function downloadCsv(filename: string, rows: Array<Record<string, string>>) {
   const headers = Object.keys(rows[0] || {})
   if (headers.length === 0) return

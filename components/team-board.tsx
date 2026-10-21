@@ -141,6 +141,7 @@ function reviewPill(member: Registration) {
 function bucketOf(team: Team) {
   const people = team.members
   if (people.length > 0 && people.every((person) => person.reject_status === "sent")) return "rejected"
+  if (people.length > 0 && people.every((person) => person.qr_status === "sent")) return "confirmed"
   if (people.length > 0 && people.every((person) => person.rsvp_status !== "none")) return "sent"
   if (people.length > 0 && people.every((person) => person.review_status === "reviewed")) {
     return "reviewed"
@@ -185,12 +186,15 @@ export function TeamBoard({
 }) {
   const [openId, setOpenId] = React.useState<string | null>(null)
   const [picked, setPicked] = React.useState<string[]>([])
-  const [section, setSection] = React.useState<"pending" | "reviewed" | "sent" | "rejected">("pending")
+  const [section, setSection] = React.useState<
+    "pending" | "reviewed" | "sent" | "confirmed" | "rejected"
+  >("pending")
   const selected = teams.find((team) => teamKey(team) === openId) || null
   const pickedSet = new Set(picked)
   const pending = teams.filter((team) => bucketOf(team) === "pending")
   const reviewed = teams.filter((team) => bucketOf(team) === "reviewed")
   const sent = teams.filter((team) => bucketOf(team) === "sent")
+  const confirmed = teams.filter((team) => bucketOf(team) === "confirmed")
   const rejected = teams.filter((team) => bucketOf(team) === "rejected")
   const sections = [
     {
@@ -210,6 +214,12 @@ export function TeamBoard({
       title: "RSVP sent",
       hint: "Every person on these teams already has an RSVP mail or has confirmed.",
       teams: sent,
+    },
+    {
+      id: "confirmed" as const,
+      title: "Confirm mailed",
+      hint: "These teams already received the confirm mail with the venue QR.",
+      teams: confirmed,
     },
     {
       id: "rejected" as const,
@@ -393,6 +403,7 @@ function TeamCard({
   const mailed = people.filter((person) => person.rsvp_status === "sent").length
   const confirmed = people.filter((person) => person.rsvp_status === "confirmed").length
   const waiting = people.filter((person) => person.rsvp_status === "none").length
+  const confirmMailed = people.filter((person) => person.qr_status === "sent").length
   return (
     <Card
       role="button"
@@ -425,6 +436,7 @@ function TeamCard({
           {venue.label}
           {mailed ? ` · ${mailed} RSVP mailed` : ""}
           {confirmed ? ` · ${confirmed} confirmed` : ""}
+          {confirmMailed ? ` · ${confirmMailed} confirm mailed` : ""}
           {waiting ? ` · ${waiting} not mailed` : ""}
         </p>
       </CardHeader>
@@ -436,6 +448,8 @@ function TeamCard({
               <span className="shrink-0">
                 {person.reject_status === "sent" ? (
                   <Pill tone="warn">Rejected</Pill>
+                ) : person.qr_status === "sent" ? (
+                  <Pill tone="ok">Confirm mailed</Pill>
                 ) : (
                   rsvpPill(person, true)
                 )}

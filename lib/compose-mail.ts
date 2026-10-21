@@ -6,10 +6,11 @@ export type MailFields = {
   venue: string
   email: string
   confirm_url?: string
+  map?: string
 }
 
 const TOKEN =
-  /\{\{\s*(name|team|venue|email|confirm_url)\s*\}\}/gi
+  /\{\{\s*(name|team|venue|email|confirm_url|map)\s*\}\}/gi
 
 export function readableName(name: string, email = "") {
   const cleaned = name.replace(/\s+/g, " ").trim()
@@ -30,6 +31,7 @@ export function fillTemplate(template: string, fields: MailFields) {
     venue: fields.venue || "",
     email: fields.email || "",
     confirm_url: fields.confirm_url || "",
+    map: fields.map || "",
   }
   return template.replace(TOKEN, (match, key: string) => values[key.toLowerCase()] ?? match)
 }

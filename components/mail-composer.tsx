@@ -36,15 +36,16 @@ import { mailVenue } from "@/lib/event-venues"
 import type { MailTemplate } from "@/lib/mail-template-store"
 import { useRoster } from "@/hooks/use-roster"
 
-type Audience = "roster" | "venue" | "custom"
+type Audience = "roster" | "venue" | "confirmed" | "custom"
 type Kind = "rsvp" | "reject" | "custom"
 
 const DRAFT_KEY = "fetchathon-mail-draft"
 const SAMPLE = {
   name: "Alex Rivera",
   team: "fetchathon3.0-12",
-  venue: "Masters' Union Gurugram",
+  venue: "Presidency University, Bengaluru",
   email: "alex@example.com",
+  map: "https://www.google.com/maps/search/?api=1&query=Presidency+University+Itgalpur+Rajanakunte+Yelahanka+Bengaluru",
   confirm_url: "https://example.com/rsvp/confirm/sample",
 }
 
@@ -95,7 +96,12 @@ export function MailComposer() {
           if (draft.templateId) setTemplateId(draft.templateId)
           if (draft.subject) setSubject(draft.subject)
           if (draft.body) setBody(draft.body)
-          if (draft.audience === "roster" || draft.audience === "venue" || draft.audience === "custom") {
+          if (
+            draft.audience === "roster" ||
+            draft.audience === "venue" ||
+            draft.audience === "confirmed" ||
+            draft.audience === "custom"
+          ) {
             setAudience(draft.audience)
           }
           if (draft.venue) setVenue(draft.venue)
@@ -121,10 +127,12 @@ export function MailComposer() {
   const addressBook = React.useMemo(() => {
     const venues = new Map<string, { people: number; mailed: number; confirmed: number; rejected: number }>()
     let people = 0
+    let confirmMailed = 0
     for (const row of data?.registrations || []) {
       const email = row.email.trim().toLowerCase()
       if (!COMPOSE_EMAIL_RE.test(email)) continue
       people += 1
+      if (row.qr_status === "sent") confirmMailed += 1
       const label = mailVenue(row.city, row.metro).label
       const group = venues.get(label) || { people: 0, mailed: 0, confirmed: 0, rejected: 0 }
       group.people += 1
@@ -135,6 +143,7 @@ export function MailComposer() {
     }
     return {
       people,
+      confirmMailed,
       venues: [...venues.entries()].sort((a, b) => a[0].localeCompare(b[0])),
     }
   }, [data])
@@ -145,7 +154,9 @@ export function MailComposer() {
       ? addressBook.people
       : audience === "venue"
         ? selectedVenue?.[1].people || 0
-        : parseEmailList(emails).length
+        : audience === "confirmed"
+          ? addressBook.confirmMailed
+          : parseEmailList(emails).length
 
   const preview = {
     subject: fillTemplate(subject, SAMPLE) || "Subject",
@@ -230,7 +241,9 @@ export function MailComposer() {
       ? `everyone on the roster (${recipientCount})`
       : audience === "venue"
         ? `${venue || "the selected location"} (${recipientCount})`
-        : `${recipientCount} typed ${recipientCount === 1 ? "address" : "addresses"}`
+        : audience === "confirmed"
+          ? `people who already received the confirm mail (${recipientCount})`
+          : `${recipientCount} typed ${recipientCount === 1 ? "address" : "addresses"}`
 
   return (
     <div className="grid gap-4 px-4 font-normal font-sans antialiased lg:grid-cols-[minmax(0,1fr)_18rem] lg:px-6">
@@ -288,7 +301,8 @@ export function MailComposer() {
                 <Label>Message</Label>
                 <MailEditor value={body} onChange={setBody} />
                 <p className="text-sm text-muted-foreground">
-                  Use {"{{name}}"}, {"{{team}}"}, {"{{venue}}"}, and {"{{confirm_url}}"}. Add an image from the toolbar.
+                  Use {"{{name}}"}, {"{{team}}"}, {"{{venue}}"}, {"{{map}}"}, and {"{{confirm_url}}"}.
+                  Each person gets the location they chose. Bengaluru gets Presidency University and its map. Add an image from the toolbar.
                 </p>
               </div>
             </>
@@ -300,6 +314,7 @@ export function MailComposer() {
               {(
                 [
                   ["venue", "One location"],
+                  ["confirmed", "Confirm mailed"],
                   ["custom", "Typed emails"],
                   ["roster", "Everyone"],
                 ] as const
@@ -342,6 +357,13 @@ export function MailComposer() {
                 className="min-h-20"
               />
             ) : null}
+            {audience === "confirmed" ? (
+              <p className="text-sm text-muted-foreground">
+                {loading
+                  ? "Counting people…"
+                  : `${addressBook.confirmMailed} ${addressBook.confirmMailed === 1 ? "person has" : "people have"} the confirm mail. A note uses each person's own location and map.`}
+              </p>
+            ) : null}
             {audience === "roster" ? (
               <p className="text-sm text-muted-foreground">
                 {loading ? "Counting people…" : `${addressBook.people} people with an email address.`}
@@ -355,7 +377,10 @@ export function MailComposer() {
               <iframe
                 title="Email preview"
                 sandbox=""
-                srcDoc={composeMessageHtml(preview.subject, preview.body)}
+                srcDoc={composeMessageHtml(preview.subject, preview.body, {
+                  label: SAMPLE.venue,
+                  mapUrl: SAMPLE.map,
+                })}
                 className="h-[640px] w-full rounded-xl border bg-[#efeafc]"
               />
             ) : (

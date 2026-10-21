@@ -13,6 +13,7 @@ const SEND_GAP_MS = 250
 export type ComposeAudience =
   | { kind: "roster" }
   | { kind: "venue"; venue: string }
+  | { kind: "confirmed" }
   | { kind: "custom"; emails: string }
 
 type Recipient = MailFields
@@ -26,6 +27,7 @@ function personFrom(row: Registration): Recipient | null {
     name: readableName(row.name, email),
     team: row.team_id_display || row.team_id || "",
     venue: place.label,
+    map: place.mapUrl || "",
     confirm_url: rsvpConfirmUrl(teamKey(row)),
   }
 }
@@ -59,6 +61,7 @@ export async function resolveRecipients(audience: ComposeAudience) {
           name: readableName("", email),
           team: "",
           venue: "",
+          map: "",
           confirm_url: "",
         },
     )
@@ -71,6 +74,7 @@ export async function resolveRecipients(audience: ComposeAudience) {
     const person = personFrom(row)
     if (!person || seen.has(person.email)) continue
     if (audience.kind === "venue" && !sameVenue(person, row, audience.venue)) continue
+    if (audience.kind === "confirmed" && row.qr_status !== "sent") continue
     seen.add(person.email)
     people.push(person)
   }
@@ -97,8 +101,8 @@ export async function sendComposedMail(input: {
             to: person.email,
             toName: person.name,
             subject,
-            text: composeMessageText(body),
-            html: composeMessageHtml(subject, body),
+            text: composeMessageText(body, { label: person.venue, mapUrl: person.map || null }),
+            html: composeMessageHtml(subject, body, { label: person.venue, mapUrl: person.map || null }),
           },
           transporter,
         )

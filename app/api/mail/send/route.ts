@@ -25,6 +25,7 @@ async function testRecipient(email: string) {
         name: readableName(row.name, email),
         team: row.team_id_display || row.team_id || "",
         venue: mailVenue(row.city, row.metro).label,
+        map: mailVenue(row.city, row.metro).mapUrl || "",
         confirm_url: rsvpConfirmUrl(teamKey(row)),
       }
     }
@@ -36,6 +37,7 @@ async function testRecipient(email: string) {
     name: readableName("", email),
     team: "",
     venue: "",
+    map: "",
     confirm_url: "",
   }
 }
@@ -51,6 +53,7 @@ function audienceFrom(body: {
     if (!venue) return null
     return { kind: "venue", venue }
   }
+  if (body.audience === "confirmed") return { kind: "confirmed" }
   if (body.audience === "custom") return { kind: "custom", emails: String(body.emails || "") }
   return null
 }

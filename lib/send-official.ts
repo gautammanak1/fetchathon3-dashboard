@@ -17,6 +17,7 @@ function matches(row: Registration, audience: ComposeAudience) {
   if (audience.kind === "venue") {
     return eventLocation(row).toLowerCase() === audience.venue.trim().toLowerCase()
   }
+  if (audience.kind === "confirmed") return row.qr_status === "sent"
   const wanted = new Set(
     audience.emails
       .split(/[\s,;]+/)

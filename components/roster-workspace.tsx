@@ -11,9 +11,28 @@ import { RegistrationFilters } from "@/components/registration-filters"
 import { RegistrationTable } from "@/components/registration-table"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
-import { downloadCsv } from "@/lib/csv"
+import { downloadCsv, venueCsvName } from "@/lib/csv"
+import { mailVenue } from "@/lib/event-venues"
 import { EMPTY_FILTERS, filterRegistrations } from "@/lib/filters"
 import type { Filters, Registration } from "@/lib/types"
+
+function registrationCsv(rows: Registration[]) {
+  return rows.map((row) => ({
+    name: row.name,
+    email: row.email,
+    phone: row.phone,
+    role: row.role,
+    team: row.team_id_display,
+    organization: row.organization,
+    filled_location: row.city,
+    venue: mailVenue(row.city, row.metro).label,
+    status: row.status,
+    registration: row.registration_mail_status,
+    rsvp: row.rsvp_status,
+    reject: row.reject_status,
+    qr: row.qr_status,
+  }))
+}
 
 export function RosterWorkspace({
   rows,
@@ -42,11 +61,17 @@ export function RosterWorkspace({
     token: string | null
     passUrl: string | null
   } | null>(null)
+  const [exportVenue, setExportVenue] = React.useState("")
 
   const filtered = React.useMemo(
     () => filterRegistrations(rows, filters),
     [rows, filters],
   )
+  const exportVenues = React.useMemo(() => {
+    const labels = new Set<string>()
+    for (const row of rows) labels.add(mailVenue(row.city, row.metro).label)
+    return [...labels].sort((a, b) => a.localeCompare(b))
+  }, [rows])
   const selected = filtered.filter((row) => selectedIds.includes(row.id))
 
   const openId = openRow?.id
@@ -85,34 +110,44 @@ export function RosterWorkspace({
         onChange={setFilters}
         showActions={isAdmin}
       />
-      <div className="flex justify-end px-4 lg:px-6">
+      <div className="flex flex-wrap items-center justify-end gap-2 px-4 lg:px-6">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          disabled={filtered.length === 0}
-          onClick={() =>
-            downloadCsv(
-              "fetchathon-registrations.csv",
-              filtered.map((row) => ({
-                name: row.name,
-                email: row.email,
-                phone: row.phone,
-                role: row.role,
-                team: row.team_id_display,
-                organization: row.organization,
-                location: row.city,
-                status: row.status,
-                registration: row.registration_mail_status,
-                rsvp: row.rsvp_status,
-                reject: row.reject_status,
-                qr: row.qr_status,
-              })),
-            )
-          }
+          disabled={rows.length === 0}
+          onClick={() => downloadCsv("fetchathon-registrations.csv", registrationCsv(rows))}
         >
           <DownloadIcon />
-          Export CSV
+          Export all
+        </Button>
+        <select
+          className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
+          value={exportVenue}
+          onChange={(event) => setExportVenue(event.target.value)}
+          aria-label="Venue to download"
+        >
+          <option value="">Choose a venue</option>
+          {exportVenues.map((label) => (
+            <option key={label} value={label}>
+              {label}
+            </option>
+          ))}
+        </select>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!exportVenue}
+          onClick={() => {
+            const matched = rows.filter(
+              (row) => mailVenue(row.city, row.metro).label === exportVenue,
+            )
+            downloadCsv(venueCsvName(exportVenue), registrationCsv(matched))
+          }}
+        >
+          <DownloadIcon />
+          Export venue
         </Button>
       </div>
       <ActionBar

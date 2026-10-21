@@ -533,7 +533,7 @@ function eventDetailRows(row: Registration, members: Registration[]) {
   const rows: Array<[string, string]> = [
     ["Location", `${escapeHtml(venue.label)}${note ? `<br><span style="color:#6b6b6b;">${escapeHtml(note)}</span>` : ""}`],
   ]
-  if (venue.mapUrl) rows.push(["Map", textLink(venue.mapUrl, "Open map")])
+  if (venue.mapUrl) rows.push(["Map", textLink(venue.mapUrl, venue.mapUrl)])
   rows.push(
     ["Discord", `${escapeHtml(DISCORD_NOTE)}<br>${textLink(discordInviteUrl(), "Join Discord")}`],
     ["Offer", "One month free ASI:One Pro and Agentverse Premium."],
@@ -903,11 +903,28 @@ function sanitizeMailHtml(html: string) {
     .replace(/\son\w+=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
 }
 
-export function composeMessageHtml(subject: string, body: string) {
+function locationAlreadyIn(body: string, place?: { label: string; mapUrl: string | null }) {
+  if (!place?.label) return true
+  if (place.mapUrl && body.includes(place.mapUrl)) return true
+  return /your location/i.test(body) && body.toLowerCase().includes(place.label.toLowerCase())
+}
+
+function locationRow(body: string, place?: { label: string; mapUrl: string | null }) {
+  if (locationAlreadyIn(body, place) || !place?.label) return ""
+  const map = place.mapUrl ? `<br>${textLink(place.mapUrl, place.mapUrl)}` : ""
+  return `<tr><td class="pad" style="padding:0 28px 8px;font-family:${FONT};font-size:15px;line-height:1.55;color:#1a1a1a;"><strong>Your location:</strong> ${escapeHtml(place.label)}${map}</td></tr>`
+}
+
+export function composeMessageHtml(
+  subject: string,
+  body: string,
+  place?: { label: string; mapUrl: string | null },
+) {
   const trimmed = body.trim()
+  const location = locationRow(trimmed, place)
   if (/<[a-z][\s\S]*>/i.test(trimmed)) {
     const inner = `<tr><td class="pad" style="padding:28px 28px 8px;font-family:${FONT};color:#1a1a1a;font-size:16px;line-height:1.55;">${sanitizeMailHtml(trimmed)}</td></tr>`
-    return wrapEmail(subject, `${inner}${mailFooter()}`)
+    return wrapEmail(subject, `${inner}${location}${mailFooter()}`)
   }
   if (/shortlisted for fetch-a-thon|confirm your rsvp|absolutely, i'm in|you are selected/i.test(trimmed)) {
     return rsvpFromCompose(subject, trimmed)
@@ -919,15 +936,21 @@ export function composeMessageHtml(subject: string, body: string) {
     .map((part) => composeBlock(part))
     .filter(Boolean)
     .join(sectionGap())
-  return wrapEmail(subject, `${brandedRows(rows)}${mailFooter()}`)
+  return wrapEmail(subject, `${brandedRows(rows)}${location}${mailFooter()}`)
 }
 
-export function composeMessageText(body: string) {
-  return body
+export function composeMessageText(
+  body: string,
+  place?: { label: string; mapUrl: string | null },
+) {
+  const text = body
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n\n")
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .trim()
+  if (locationAlreadyIn(text, place) || !place?.label) return text
+  const map = place.mapUrl ? `\n${place.mapUrl}` : ""
+  return `${text}\n\nYour location: ${place.label}${map}`.trim()
 }
