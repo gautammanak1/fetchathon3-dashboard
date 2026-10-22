@@ -175,10 +175,8 @@ export function RegistrationsPage() {
                 force ? "Reject emails resent" : "Reject emails sent",
               )
             }
-            onGenerateQr={(ids) =>
-              queueMail(ids, "generate")
-            }
-            onSendQr={(ids, force) => queueMail(ids, "send", force)}
+            onGenerateQr={async (ids) => Boolean(await queueMail(ids, "generate"))}
+            onSendQr={async (ids, force) => Boolean(await queueMail(ids, "send", force))}
           />
         </>
       ) : null}
@@ -365,9 +363,11 @@ export function ActionsPage() {
                 force ? "Reject emails resent" : "Reject emails sent",
               )
             }
-            onGenerateQr={(ids) => sendQrQueue(runQrQueue, patchPeople, setBusy, ids, "generate")}
-            onSendQr={(ids, force) =>
-              sendQrQueue(runQrQueue, patchPeople, setBusy, ids, "send", force)
+            onGenerateQr={async (ids) =>
+              Boolean(await sendQrQueue(runQrQueue, patchPeople, setBusy, ids, "generate"))
+            }
+            onSendQr={async (ids, force) =>
+              Boolean(await sendQrQueue(runQrQueue, patchPeople, setBusy, ids, "send", force))
             }
           />
         </>
