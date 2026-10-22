@@ -10,8 +10,13 @@ export type ActionPayload = {
   error?: string
   note?: string
   sentIds?: string[]
+  generatedIds?: string[]
+  remainingIds?: string[]
+  done?: boolean
+  failed?: Array<{ id: string }>
   count?: number
   sent?: number
+  teams?: number
 }
 
 export function useRoster(initial?: RosterPayload | null) {
@@ -88,5 +93,76 @@ export function useRoster(initial?: RosterPayload | null) {
     [refresh],
   )
 
-  return { data, loading, error, refresh, runAction, patchPeople }
+  const runQrQueue = React.useCallback(
+    async (
+      body: {
+        ids: string[]
+        mode: "generate" | "send"
+        force?: boolean
+        onlySelected?: boolean
+      },
+      label: string,
+      onBatch?: (ids: string[]) => void,
+    ) => {
+      const toastId = "qr-queue"
+      let pending = [...new Set(body.ids.filter(Boolean))]
+      const total = pending.length
+      if (total === 0) {
+        toast.error("Select at least one person")
+        return null
+      }
+      let people = 0
+      let failed = 0
+      let steps = 0
+      let lastNote = ""
+      try {
+        while (pending.length > 0 && steps < 400) {
+          steps += 1
+          toast.loading(`${label}… ${total - pending.length} of ${total}`, { id: toastId })
+          const response = await fetch("/api/actions/qr", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...body, ids: pending, queue: true }),
+          })
+          const payload = await readJson<ActionPayload>(response)
+          if (!response.ok) {
+            toast.error(payload.error || `${label} stopped`, { id: toastId })
+            return null
+          }
+          const touched = payload.sentIds?.length ? payload.sentIds : payload.generatedIds || []
+          if (touched.length) onBatch?.(touched)
+          people += touched.length
+          failed += payload.failed?.length || 0
+          lastNote = payload.note || lastNote
+          const next = payload.remainingIds || []
+          if (next.length >= pending.length) {
+            toast.error(`${label} stopped before it finished`, { id: toastId })
+            return null
+          }
+          pending = next
+          if (payload.done || next.length === 0) break
+        }
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : `${label} stopped`, { id: toastId })
+        return null
+      }
+      if (pending.length > 0) {
+        toast.error(`${label} stopped before it finished`, { id: toastId })
+        return null
+      }
+      const noun = people === 1 ? "person" : "people"
+      toast.success(
+        failed
+          ? `${label} finished, ${failed} failed`
+          : people === 0 && lastNote
+            ? lastNote
+            : `${label} finished for ${people} ${noun}`,
+        { id: toastId },
+      )
+      return { sentIds: [], note: `${label} finished` }
+    },
+    [],
+  )
+
+  return { data, loading, error, refresh, runAction, runQrQueue, patchPeople }
 }

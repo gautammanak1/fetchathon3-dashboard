@@ -99,8 +99,34 @@ export function OverviewPage() {
   )
 }
 
+function sendQrQueue(
+  runQrQueue: ReturnType<typeof useRoster>["runQrQueue"],
+  patchPeople: ReturnType<typeof useRoster>["patchPeople"],
+  setBusy: (busy: boolean) => void,
+  ids: string[],
+  mode: "generate" | "send",
+  force?: boolean,
+  onlySelected?: boolean,
+  label?: string,
+) {
+  setBusy(true)
+  const name =
+    label ||
+    (mode === "generate"
+      ? "Generating team QR"
+      : force
+        ? "Resending confirm mail"
+        : "Sending confirm mail")
+  return runQrQueue({ ids, mode, force, onlySelected }, name, (touched) =>
+    patchPeople(touched, {
+      qr_status: mode === "send" ? "sent" : "generated",
+      ...(mode === "send" ? { qr_sent_at: new Date().toISOString() } : {}),
+    }),
+  ).finally(() => setBusy(false))
+}
+
 export function RegistrationsPage() {
-  const { data, loading, error, runAction } = useRoster()
+  const { data, loading, error, runAction, runQrQueue, patchPeople } = useRoster()
   const [busy, setBusy] = React.useState(false)
 
   const act = async (
@@ -115,6 +141,9 @@ export function RegistrationsPage() {
       setBusy(false)
     }
   }
+
+  const queueMail = (ids: string[], mode: "generate" | "send", force?: boolean) =>
+    sendQrQueue(runQrQueue, patchPeople, setBusy, ids, mode, force)
 
   return (
     <DashboardShell title="Registrations">
@@ -147,15 +176,9 @@ export function RegistrationsPage() {
               )
             }
             onGenerateQr={(ids) =>
-              act("/api/actions/qr", { ids, mode: "generate" }, "Team QR codes generated")
+              queueMail(ids, "generate")
             }
-            onSendQr={(ids, force) =>
-              act(
-                "/api/actions/qr",
-                { ids, mode: "send", force },
-                force ? "Team QR emails resent" : "Team QR emails sent",
-              )
-            }
+            onSendQr={(ids, force) => queueMail(ids, "send", force)}
           />
         </>
       ) : null}
@@ -168,7 +191,7 @@ export function TeamsPage({
 }: {
   initial?: RosterPayload | null
 }) {
-  const { data, loading, error, runAction, patchPeople } = useRoster(initial)
+  const { data, loading, error, runAction, runQrQueue, patchPeople } = useRoster(initial)
   const { isAdmin } = useAuth()
   const [filters, setFilters] = React.useState(EMPTY_FILTERS)
   const [busy, setBusy] = React.useState(false)
@@ -262,20 +285,18 @@ export function TeamsPage({
                 })
               }
             }}
-            onSendQr={async (ids, force, onlySelected) => {
-              const payload = await act(
-                "/api/actions/qr",
-                { ids, mode: "send", force, onlySelected },
-                force ? "Team QR resent" : "Confirm mail sent",
-                { refresh: false },
+            onSendQr={(ids, force, onlySelected) =>
+              sendQrQueue(
+                runQrQueue,
+                patchPeople,
+                setBusy,
+                ids,
+                "send",
+                force,
+                onlySelected,
+                force ? "Resending confirm mail" : "Sending confirm mail",
               )
-              if (payload?.sentIds?.length) {
-                patchPeople(payload.sentIds, {
-                  qr_status: "sent",
-                  qr_sent_at: new Date().toISOString(),
-                })
-              }
-            }}
+            }
           />
         </>
       ) : null}
@@ -284,7 +305,7 @@ export function TeamsPage({
 }
 
 export function ActionsPage() {
-  const { data, loading, error, runAction } = useRoster()
+  const { data, loading, error, runAction, runQrQueue, patchPeople } = useRoster()
   const [busy, setBusy] = React.useState(false)
 
   const act = async (
@@ -344,15 +365,9 @@ export function ActionsPage() {
                 force ? "Reject emails resent" : "Reject emails sent",
               )
             }
-            onGenerateQr={(ids) =>
-              act("/api/actions/qr", { ids, mode: "generate" }, "Team QR codes generated")
-            }
+            onGenerateQr={(ids) => sendQrQueue(runQrQueue, patchPeople, setBusy, ids, "generate")}
             onSendQr={(ids, force) =>
-              act(
-                "/api/actions/qr",
-                { ids, mode: "send", force },
-                force ? "Team QR emails resent" : "Team QR emails sent",
-              )
+              sendQrQueue(runQrQueue, patchPeople, setBusy, ids, "send", force)
             }
           />
         </>

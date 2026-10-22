@@ -6,6 +6,7 @@ import { mailMeta, persistMailRecords } from "@/lib/mail-db"
 import { teamPassUrl } from "@/lib/pass-url"
 import { requireAdmin } from "@/lib/require-admin"
 import { findRegistration, loadRosterFast } from "@/lib/roster"
+import type { RosterPayload } from "@/lib/types"
 import { resultNote, sendTeamQrEmails } from "@/lib/send-bulk"
 import { isSmtpConfigured } from "@/lib/smtp"
 import { teamMailGroups } from "@/lib/team-mail"
@@ -18,7 +19,24 @@ import {
 } from "@/lib/team-qr-store"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 300
+export const maxDuration = 60
+
+const SEND_BATCH = 2
+const GENERATE_BATCH = 12
+
+function idsStillWaiting(
+  ids: string[],
+  roster: RosterPayload,
+  waitingKeys: Set<string>,
+  doneKeys: Set<string>,
+) {
+  return ids.filter((id) => {
+    const row = findRegistration(roster, id)
+    if (!row) return false
+    const key = teamKey(row)
+    return waitingKeys.has(key) && !doneKeys.has(key)
+  })
+}
 
 export async function GET(request: Request) {
   const id = new URL(request.url).searchParams.get("id")
@@ -89,11 +107,13 @@ export async function POST(request: Request) {
     mode?: "generate" | "send"
     force?: boolean
     onlySelected?: boolean
+    queue?: boolean
   }
   const ids = [...new Set((body.ids || []).filter(Boolean))]
   const mode = body.mode === "send" ? "send" : "generate"
   const force = body.force === true
   const onlySelected = body.onlySelected === true
+  const queue = body.queue === true
   if (ids.length === 0) {
     return NextResponse.json({ error: "Select at least one person" }, { status: 400 })
   }
@@ -105,9 +125,10 @@ export async function POST(request: Request) {
   if (mode === "generate") {
     const now = new Date().toISOString()
     const groups = teamMailGroups(selected, roster.registrations)
+    const batch = queue ? groups.slice(0, GENERATE_BATCH) : groups
     let teams = 0
     const generatedIds: string[] = []
-    for (const group of groups) {
+    for (const group of batch) {
       const record = await ensureTeamQr({
         team_key: group.key,
         team_id_display: group.primary.team_id_display || group.key,
@@ -125,10 +146,21 @@ export async function POST(request: Request) {
         },
       )
     }
+    const remainingIds = queue
+      ? idsStillWaiting(
+          ids,
+          roster,
+          new Set(groups.map((group) => group.key)),
+          new Set(batch.map((group) => group.key)),
+        )
+      : []
     return NextResponse.json({
       ok: true,
       count: generatedIds.length,
       teams,
+      generatedIds,
+      remainingIds,
+      done: remainingIds.length === 0,
       note: `Generated ${teams} team QR ${teams === 1 ? "code" : "codes"} for venue check-in`,
     })
   }
@@ -160,13 +192,16 @@ export async function POST(request: Request) {
         id: row.id,
         reason: "QR mail already sent",
       })),
+      remainingIds: [],
+      done: true,
       note: "No new QR emails. Selected teams already received the venue pass. Use Send again to resend.",
     })
   }
 
+  const batch = queue ? groups.slice(0, SEND_BATCH) : groups
   const records = new Map(
     await Promise.all(
-      groups.map(async (group) => {
+      batch.map(async (group) => {
         const record = await ensureTeamQr({
           team_key: group.key,
           team_id_display: group.primary.team_id_display || group.key,
@@ -183,13 +218,13 @@ export async function POST(request: Request) {
   )
 
   const result = await sendTeamQrEmails(
-    groups,
+    batch,
     (group) => records.get(group.key) ?? null,
   )
 
   if (result.sentIds.length) {
     const sentAt = new Date().toISOString()
-    const sentGroups = groups.filter((group) =>
+    const sentGroups = batch.filter((group) =>
       group.members.some((member) => result.sentIds.includes(member.id)),
     )
     for (const group of sentGroups) {
@@ -210,10 +245,20 @@ export async function POST(request: Request) {
     await markTeamQrSent(sentGroups.map((group) => group.key))
   }
 
+  const remainingIds = queue
+    ? idsStillWaiting(
+        ids,
+        roster,
+        new Set(groups.map((group) => group.key)),
+        new Set(batch.map((group) => group.key)),
+      )
+    : []
   return NextResponse.json({
     ok: result.failed.length === 0,
     count: result.sent,
     ...result,
+    remainingIds,
+    done: remainingIds.length === 0,
     note: resultNote("QR", result),
   })
 }
