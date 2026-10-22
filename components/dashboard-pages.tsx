@@ -117,11 +117,15 @@ function sendQrQueue(
       : force
         ? "Resending confirm mail"
         : "Sending confirm mail")
-  return runQrQueue({ ids, mode, force, onlySelected }, name, (touched) =>
-    patchPeople(touched, {
-      qr_status: mode === "send" ? "sent" : "generated",
-      ...(mode === "send" ? { qr_sent_at: new Date().toISOString() } : {}),
-    }),
+  return runQrQueue(
+    { ids, mode, force, onlySelected },
+    name,
+    (touched) =>
+      patchPeople(touched, {
+        qr_status: mode === "send" ? "sent" : "generated",
+        ...(mode === "send" ? { qr_sent_at: new Date().toISOString() } : {}),
+      }),
+    () => setBusy(false),
   ).finally(() => setBusy(false))
 }
 

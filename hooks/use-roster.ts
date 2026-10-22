@@ -17,6 +17,104 @@ export type ActionPayload = {
   count?: number
   sent?: number
   teams?: number
+  jobId?: string
+}
+
+const QR_JOB_KEY = "fetchathon-qr-job"
+
+type QrJobView = {
+  id?: string
+  error?: string
+  status?: "running" | "done" | "error"
+  mode?: "generate" | "send"
+  sentIds?: string[]
+  failed?: number
+  total?: number
+  note?: string
+}
+
+let patchQrPeople: ((ids: string[], mode: "generate" | "send") => void) | null = null
+let watchToken = 0
+let activeJobId: string | null = null
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function watchQrJob(jobId: string, label: string, onBatch?: (ids: string[]) => void) {
+  const token = ++watchToken
+  activeJobId = jobId
+  const seen = new Set<string>()
+  let pollErrors = 0
+  try {
+    while (token === watchToken) {
+      let job: QrJobView
+      try {
+        const response = await fetch(`/api/actions/qr/job?id=${encodeURIComponent(jobId)}`, {
+          cache: "no-store",
+        })
+        job = await readJson<QrJobView>(response)
+        if (!response.ok) {
+          toast.error(job.error || `${label} stopped`, { id: "qr-queue" })
+          sessionStorage.removeItem(QR_JOB_KEY)
+          return null
+        }
+      } catch {
+        pollErrors += 1
+        if (pollErrors >= 6 || token !== watchToken) {
+          toast.message(`${label} keeps going on the server. Open this page again to watch it.`, {
+            id: "qr-queue",
+          })
+          return { sentIds: [] as string[], note: "background" }
+        }
+        toast.loading(`${label}… still sending on the server. You can leave this page.`, {
+          id: "qr-queue",
+        })
+        await sleep(3000)
+        continue
+      }
+      if (token !== watchToken) return { sentIds: [], note: "continued" }
+      if (!job.id) {
+        toast.error(`${label} stopped`, { id: "qr-queue" })
+        sessionStorage.removeItem(QR_JOB_KEY)
+        return null
+      }
+      pollErrors = 0
+      const mode = job.mode === "generate" ? "generate" : "send"
+      const fresh = (job.sentIds || []).filter((id) => !seen.has(id))
+      for (const id of fresh) seen.add(id)
+      if (fresh.length) {
+        patchQrPeople?.(fresh, mode)
+        onBatch?.(fresh)
+      }
+      const sent = job.sentIds?.length || 0
+      const total = job.total || sent
+      if (job.status === "done") {
+        sessionStorage.removeItem(QR_JOB_KEY)
+        const failed = job.failed || 0
+        const noun = sent === 1 ? "person" : "people"
+        toast.success(
+          failed
+            ? `${label} finished, ${failed} failed`
+            : sent === 0 && job.note
+              ? job.note
+              : `${label} finished for ${sent} ${noun}`,
+          { id: "qr-queue" },
+        )
+        return { sentIds: job.sentIds || [], note: job.note || `${label} finished` }
+      }
+      if (job.status === "error") {
+        sessionStorage.removeItem(QR_JOB_KEY)
+        toast.error(job.note || `${label} stopped`, { id: "qr-queue" })
+        return null
+      }
+      toast.loading(`${label}… ${sent} of ${total}. You can leave this page.`, { id: "qr-queue" })
+      await sleep(3000)
+    }
+    return { sentIds: [], note: "continued" }
+  } finally {
+    if (token === watchToken) activeJobId = null
+  }
 }
 
 export function useRoster(initial?: RosterPayload | null) {
@@ -59,9 +157,24 @@ export function useRoster(initial?: RosterPayload | null) {
   }, [])
 
   React.useEffect(() => {
+    patchQrPeople = (ids, mode) => {
+      patchPeople(ids, {
+        qr_status: mode === "send" ? "sent" : "generated",
+        ...(mode === "send" ? { qr_sent_at: new Date().toISOString() } : {}),
+      })
+    }
+  }, [patchPeople])
+
+  React.useEffect(() => {
     if (initial) return
     void refresh()
   }, [initial, refresh])
+
+  React.useEffect(() => {
+    const stored = window.sessionStorage.getItem(QR_JOB_KEY)
+    if (!stored || activeJobId === stored) return
+    void watchQrJob(stored, "Sending confirm mail")
+  }, [])
 
   const runAction = React.useCallback(
     async (
@@ -103,63 +216,33 @@ export function useRoster(initial?: RosterPayload | null) {
       },
       label: string,
       onBatch?: (ids: string[]) => void,
+      onStarted?: () => void,
     ) => {
-      const toastId = "qr-queue"
-      let pending = [...new Set(body.ids.filter(Boolean))]
-      const total = pending.length
-      if (total === 0) {
+      const ids = [...new Set(body.ids.filter(Boolean))]
+      if (ids.length === 0) {
         toast.error("Select at least one person")
         return null
       }
-      let people = 0
-      let failed = 0
-      let steps = 0
-      let lastNote = ""
+      toast.loading(`${label}… starting. You can leave this page.`, { id: "qr-queue" })
       try {
-        while (pending.length > 0 && steps < 400) {
-          steps += 1
-          toast.loading(`${label}… ${total - pending.length} of ${total}`, { id: toastId })
-          const response = await fetch("/api/actions/qr", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...body, ids: pending, queue: true }),
-          })
-          const payload = await readJson<ActionPayload>(response)
-          if (!response.ok) {
-            toast.error(payload.error || `${label} stopped`, { id: toastId })
-            return null
-          }
-          const touched = payload.sentIds?.length ? payload.sentIds : payload.generatedIds || []
-          if (touched.length) onBatch?.(touched)
-          people += touched.length
-          failed += payload.failed?.length || 0
-          lastNote = payload.note || lastNote
-          const next = payload.remainingIds || []
-          if (next.length >= pending.length) {
-            toast.error(`${label} stopped before it finished`, { id: toastId })
-            return null
-          }
-          pending = next
-          if (payload.done || next.length === 0) break
+        const response = await fetch("/api/actions/qr", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...body, ids, background: true }),
+        })
+        const payload = await readJson<ActionPayload>(response)
+        onStarted?.()
+        if (!response.ok || !payload.jobId) {
+          toast.error(payload.error || `${label} stopped`, { id: "qr-queue" })
+          return null
         }
+        sessionStorage.setItem(QR_JOB_KEY, payload.jobId)
+        return await watchQrJob(payload.jobId, label, onBatch)
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : `${label} stopped`, { id: toastId })
+        onStarted?.()
+        toast.error(err instanceof Error ? err.message : `${label} stopped`, { id: "qr-queue" })
         return null
       }
-      if (pending.length > 0) {
-        toast.error(`${label} stopped before it finished`, { id: toastId })
-        return null
-      }
-      const noun = people === 1 ? "person" : "people"
-      toast.success(
-        failed
-          ? `${label} finished, ${failed} failed`
-          : people === 0 && lastNote
-            ? lastNote
-            : `${label} finished for ${people} ${noun}`,
-        { id: toastId },
-      )
-      return { sentIds: [], note: `${label} finished` }
     },
     [],
   )
