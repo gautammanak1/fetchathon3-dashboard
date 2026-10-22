@@ -19,6 +19,7 @@ import {
   MailIcon,
   QrCodeIcon,
   ScanLineIcon,
+  UtensilsCrossedIcon,
   UsersIcon,
   UsersRoundIcon,
 } from "lucide-react"
@@ -57,6 +58,11 @@ const adminNav = [
     title: "Check-in",
     url: "/dashboard/check-in",
     icon: <ScanLineIcon />,
+  },
+  {
+    title: "Lunch",
+    url: "/dashboard/lunch",
+    icon: <UtensilsCrossedIcon />,
   },
   {
     title: "Mail",

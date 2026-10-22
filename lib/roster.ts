@@ -356,6 +356,12 @@ export async function loadRosterFast() {
   return loadRoster()
 }
 
+export async function loadDashboardRoster(): Promise<RosterPayload> {
+  const stored = await loadStoredRoster()
+  if (stored) return stored
+  return toPayload("notion", true, {}, [])
+}
+
 export function findRegistration(roster: RosterPayload, id: string) {
   return roster.registrations.find((row) => row.id === id) || null
 }

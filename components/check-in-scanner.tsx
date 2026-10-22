@@ -61,7 +61,33 @@ function beep(ok: boolean) {
   }
 }
 
-export function CheckInScanner() {
+export function CheckInScanner({
+  endpoint = "/api/check-in",
+  peopleLabel = "People joined",
+  teamsLabel = "Teams joined",
+  title = "Scan venue QR",
+  description = "Point the camera at the team pass. Everyone on that pass is marked joined.",
+  submitLabel = "Mark joined",
+  recentTitle = "Recent check-ins",
+  recentDescription = "People marked joined from a scanned pass.",
+  recentEmpty = "No one has joined yet.",
+  alreadyLabel = "Already joined",
+  freshLabel = "Checked in",
+  joinedLabel = "Joined",
+}: {
+  endpoint?: string
+  peopleLabel?: string
+  teamsLabel?: string
+  title?: string
+  description?: string
+  submitLabel?: string
+  recentTitle?: string
+  recentDescription?: string
+  recentEmpty?: string
+  alreadyLabel?: string
+  freshLabel?: string
+  joinedLabel?: string
+} = {}) {
   const regionId = React.useId().replace(/:/g, "")
   const scannerRef = React.useRef<import("html5-qrcode").Html5Qrcode | null>(null)
   const locking = React.useRef(false)
@@ -73,14 +99,14 @@ export function CheckInScanner() {
   const [summary, setSummary] = React.useState<Summary | null>(null)
 
   const loadSummary = React.useCallback(async () => {
-    const response = await fetch("/api/check-in", { cache: "no-store" })
+    const response = await fetch(endpoint, { cache: "no-store" })
     const payload = (await response.json()) as Summary & { error?: string }
     if (!response.ok) {
       toast.error(payload.error || "Could not load check-ins")
       return
     }
     setSummary(payload)
-  }, [])
+  }, [endpoint])
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -112,7 +138,7 @@ export function CheckInScanner() {
     async (scan: string) => {
       setBusy(true)
       try {
-        const response = await fetch("/api/check-in", {
+        const response = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ scan }),
@@ -135,7 +161,7 @@ export function CheckInScanner() {
         setBusy(false)
       }
     },
-    [loadSummary],
+    [endpoint, loadSummary],
   )
 
   const startCamera = React.useCallback(async () => {
@@ -173,7 +199,7 @@ export function CheckInScanner() {
   const undo = async (id: string) => {
     setBusy(true)
     try {
-      const response = await fetch("/api/check-in", {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ undoId: id }),
@@ -209,7 +235,7 @@ export function CheckInScanner() {
         <div className="grid grid-cols-2 gap-3">
           <Card size="sm">
             <CardHeader>
-              <CardDescription>People joined</CardDescription>
+              <CardDescription>{peopleLabel}</CardDescription>
               <CardTitle className="text-2xl tabular-nums">
                 {summary?.people ?? "—"}
               </CardTitle>
@@ -217,7 +243,7 @@ export function CheckInScanner() {
           </Card>
           <Card size="sm">
             <CardHeader>
-              <CardDescription>Teams joined</CardDescription>
+              <CardDescription>{teamsLabel}</CardDescription>
               <CardTitle className="text-2xl tabular-nums">
                 {summary?.teams ?? "—"}
               </CardTitle>
@@ -227,11 +253,8 @@ export function CheckInScanner() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Scan venue QR</CardTitle>
-            <CardDescription>
-              Point the camera at the team pass. Everyone on that pass is marked
-              joined.
-            </CardDescription>
+            <CardTitle>{title}</CardTitle>
+            <CardDescription>{description}</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
             <div className="relative overflow-hidden rounded-xl bg-black">
@@ -272,7 +295,7 @@ export function CheckInScanner() {
                 aria-label="Pass link"
               />
               <Button type="submit" variant="outline" disabled={busy || !manual.trim()}>
-                Mark joined
+                {submitLabel}
               </Button>
             </form>
           </CardContent>
@@ -284,7 +307,7 @@ export function CheckInScanner() {
           <Card>
             <CardHeader>
               <CardDescription>
-                {result.already ? "Already joined" : "Checked in"}
+                {result.already ? alreadyLabel : freshLabel}
               </CardDescription>
               <CardTitle className="font-mono text-xl">{result.teamId}</CardTitle>
               {result.venue ? (
@@ -305,15 +328,15 @@ export function CheckInScanner() {
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {member.checked_in_at
-                        ? `Joined ${formatWhen(member.checked_in_at)}`
-                        : "Not joined"}
+                        ? `${joinedLabel} ${formatWhen(member.checked_in_at)}`
+                        : `Not ${joinedLabel.toLowerCase()}`}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
                     {member.newly ? <Badge>New</Badge> : null}
                     {member.checked_in_at ? (
                       <Badge variant={member.newly ? "secondary" : "outline"}>
-                        Joined
+                        {joinedLabel}
                       </Badge>
                     ) : null}
                     {member.checked_in_at ? (
@@ -338,12 +361,12 @@ export function CheckInScanner() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Recent check-ins</CardTitle>
-            <CardDescription>People marked joined from a scanned pass.</CardDescription>
+            <CardTitle>{recentTitle}</CardTitle>
+            <CardDescription>{recentDescription}</CardDescription>
           </CardHeader>
           <CardContent>
             {summary && summary.recent.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No one has joined yet.</p>
+              <p className="text-sm text-muted-foreground">{recentEmpty}</p>
             ) : (
               <ul className="grid gap-2">
                 {(summary?.recent || []).map((item) => (

@@ -76,8 +76,8 @@ function ErrorState({ message }: { message: string }) {
   )
 }
 
-export function OverviewPage() {
-  const { data, loading, error } = useRoster()
+export function OverviewPage({ initial }: { initial?: RosterPayload | null }) {
+  const { data, loading, error } = useRoster(initial)
   const { isAdmin } = useAuth()
 
   return (
@@ -129,8 +129,8 @@ function sendQrQueue(
   ).finally(() => setBusy(false))
 }
 
-export function RegistrationsPage() {
-  const { data, loading, error, runAction, runQrQueue, patchPeople } = useRoster()
+export function RegistrationsPage({ initial }: { initial?: RosterPayload | null }) {
+  const { data, loading, error, runAction, runQrQueue, patchPeople } = useRoster(initial)
   const [busy, setBusy] = React.useState(false)
 
   const act = async (
@@ -306,8 +306,8 @@ export function TeamsPage({
   )
 }
 
-export function ActionsPage() {
-  const { data, loading, error, runAction, runQrQueue, patchPeople } = useRoster()
+export function ActionsPage({ initial }: { initial?: RosterPayload | null }) {
+  const { data, loading, error, runAction, runQrQueue, patchPeople } = useRoster(initial)
   const [busy, setBusy] = React.useState(false)
 
   const act = async (
