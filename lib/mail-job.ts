@@ -61,6 +61,16 @@ export function queueTokenMatches(jobId: string, token: string) {
 }
 
 function workerOrigin() {
+  if (!process.env.VERCEL) return "http://localhost:3000"
+  const configured = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.FETCHATHON_APP_URL ||
+    process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+    ""
+  )
+    .trim()
+    .replace(/\/$/, "")
+  if (configured) return configured.startsWith("http") ? configured : `https://${configured}`
   const host = (process.env.VERCEL_URL || "").trim()
   if (host) return host.startsWith("http") ? host : `https://${host}`
   return "http://localhost:3000"
@@ -235,7 +245,7 @@ async function postWorker(jobId: string) {
   const response = await fetch(`${workerOrigin()}/api/actions/qr/worker`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ jobId }),
+    body: JSON.stringify({ jobId, token: headers["x-queue-token"] }),
   })
   if (!response.ok) {
     throw new Error(`Queue worker returned ${response.status}`)

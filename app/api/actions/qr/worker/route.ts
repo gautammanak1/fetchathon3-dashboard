@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 export async function POST(request: Request) {
-  const body = (await request.json().catch(() => null)) as { jobId?: string } | null
+  const body = (await request.json().catch(() => null)) as { jobId?: string; token?: string } | null
   const jobId = body?.jobId || ""
-  const token = request.headers.get("x-queue-token") || ""
+  const token = request.headers.get("x-queue-token") || body?.token || ""
   if (!queueTokenMatches(jobId, token)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
