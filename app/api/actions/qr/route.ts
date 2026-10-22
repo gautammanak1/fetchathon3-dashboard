@@ -5,7 +5,7 @@ import { mailVenue } from "@/lib/event-venues"
 import { mailMeta, persistMailRecords } from "@/lib/mail-db"
 import { teamPassUrl } from "@/lib/pass-url"
 import { requireAdmin } from "@/lib/require-admin"
-import { findRegistration, loadRoster, loadRosterFast } from "@/lib/roster"
+import { findRegistration, loadRosterFast } from "@/lib/roster"
 import { resultNote, sendTeamQrEmails } from "@/lib/send-bulk"
 import { isSmtpConfigured } from "@/lib/smtp"
 import { teamMailGroups } from "@/lib/team-mail"
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   if (!id) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 })
   }
-  const roster = await loadRoster()
+  const roster = await loadRosterFast()
   const row = findRegistration(roster, id)
   if (!row) {
     return NextResponse.json({ error: "Not found" }, { status: 404 })

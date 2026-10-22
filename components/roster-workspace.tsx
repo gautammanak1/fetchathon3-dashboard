@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { DownloadIcon } from "lucide-react"
+import { toast } from "sonner"
 
 import { ActionBar } from "@/components/action-bar"
 import { QrPreviewDialog } from "@/components/qr-preview-dialog"
@@ -13,6 +14,7 @@ import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/use-auth"
 import { downloadCsv, venueCsvName } from "@/lib/csv"
 import { mailVenue } from "@/lib/event-venues"
+import { readJson } from "@/lib/read-json"
 import { EMPTY_FILTERS, filterRegistrations } from "@/lib/filters"
 import type { Filters, Registration } from "@/lib/types"
 
@@ -83,15 +85,23 @@ export function RosterWorkspace({
   const previewQr = async (id: string) => {
     setQr({ name: "Loading", dataUrl: null, token: null, passUrl: null })
     const response = await fetch(`/api/actions/qr?id=${encodeURIComponent(id)}`)
-    const payload = (await response.json()) as {
+    let payload: {
       name?: string
       dataUrl?: string
       token?: string
       passUrl?: string
       error?: string
     }
+    try {
+      payload = await readJson<typeof payload>(response)
+    } catch (err) {
+      setQr(null)
+      toast.error(err instanceof Error ? err.message : "Could not load the QR")
+      return
+    }
     if (!response.ok) {
       setQr(null)
+      toast.error(payload.error || "Could not load the QR")
       return
     }
     setQr({

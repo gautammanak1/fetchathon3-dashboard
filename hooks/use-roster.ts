@@ -3,6 +3,7 @@
 import * as React from "react"
 import { toast } from "sonner"
 
+import { readJson } from "@/lib/read-json"
 import type { Registration, RosterPayload } from "@/lib/types"
 
 export type ActionPayload = {
@@ -23,7 +24,7 @@ export function useRoster(initial?: RosterPayload | null) {
     setError(null)
     try {
       const response = await fetch("/api/registrations", { cache: "no-store" })
-      const payload = (await response.json()) as RosterPayload & { error?: string }
+      const payload = await readJson<RosterPayload & { error?: string }>(response)
       if (!response.ok) {
         throw new Error(payload.error || "Could not load Notion roster")
       }
@@ -69,7 +70,13 @@ export function useRoster(initial?: RosterPayload | null) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       })
-      const payload = (await response.json()) as ActionPayload
+      let payload: ActionPayload
+      try {
+        payload = await readJson<ActionPayload>(response)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Action failed")
+        return null
+      }
       if (!response.ok) {
         toast.error(payload.error || "Action failed")
         return null
