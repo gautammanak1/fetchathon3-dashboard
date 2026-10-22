@@ -31,15 +31,20 @@ function FilterGroup({
   options,
   selected,
   onChange,
+  labelFor,
+  caption,
 }: {
   title: string
   options: string[]
   selected: string[]
   onChange: (next: string[]) => void
+  labelFor?: (option: string) => string
+  caption?: string
 }) {
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium">{title}</p>
+      {caption ? <p className="text-xs text-muted-foreground">{caption}</p> : null}
       <div className="grid gap-2">
         {options.length === 0 ? (
           <p className="text-sm text-muted-foreground">No values yet</p>
@@ -61,7 +66,7 @@ function FilterGroup({
                     )
                   }}
                 />
-                <span>{option}</span>
+                <span>{labelFor ? labelFor(option) : option}</span>
               </label>
             )
           })
@@ -166,7 +171,18 @@ export function RegistrationFilters({
                 />
                 <FilterGroup
                   title="RSVP"
+                  caption="Sent is everyone the RSVP mail reached, including people who later confirmed."
                   options={["none", "sent", "confirmed"]}
+                  labelFor={(option) => {
+                    const count = rows.filter((row) =>
+                      option === "sent"
+                        ? row.rsvp_status === "sent" || row.rsvp_status === "confirmed"
+                        : row.rsvp_status === option,
+                    ).length
+                    const name =
+                      option === "none" ? "Not mailed" : option === "sent" ? "Sent" : "Confirmed"
+                    return `${name} (${count})`
+                  }}
                   selected={filters.rsvp}
                   onChange={(rsvp) => onChange({ ...filters, rsvp })}
                 />

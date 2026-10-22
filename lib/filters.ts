@@ -24,6 +24,16 @@ function includesAny(haystack: string, selected: string[]) {
   return selected.some((item) => item.toLowerCase() === value)
 }
 
+function matchesRsvp(status: string, selected: string[]) {
+  if (selected.length === 0) return true
+  const value = status.trim().toLowerCase()
+  return selected.some((item) => {
+    const choice = item.toLowerCase()
+    if (choice === "sent") return value === "sent" || value === "confirmed"
+    return choice === value
+  })
+}
+
 export function filterRegistrations(rows: Registration[], filters: Filters) {
   const query = filters.q.trim().toLowerCase()
   return rows.filter((row) => {
@@ -51,7 +61,7 @@ export function filterRegistrations(rows: Registration[], filters: Filters) {
       includesAny(row.role, filters.role) &&
       includesAny(row.status, filters.status) &&
       includesAny(row.registration_mail_status, filters.registrationMail) &&
-      includesAny(row.rsvp_status, filters.rsvp) &&
+      matchesRsvp(row.rsvp_status, filters.rsvp) &&
       includesAny(row.qr_status, filters.qr)
     )
   })

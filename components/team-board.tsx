@@ -153,7 +153,14 @@ function bucketOf(team: Team) {
   if (people.length > 0 && people.every((person) => person.reject_status === "sent")) return "rejected"
   if (people.length > 0 && people.every((person) => person.qr_status === "sent")) return "confirmed"
   if (people.some(readyForConfirm)) return "rsvpConfirmed"
-  if (people.length > 0 && people.every((person) => person.rsvp_status !== "none")) return "sent"
+  if (
+    people.length > 0 &&
+    people.every((person) => person.rsvp_status !== "none") &&
+    people.some((person) => person.rsvp_status === "confirmed" || person.qr_status === "sent")
+  ) {
+    return "rsvpConfirmed"
+  }
+  if (people.length > 0 && people.every((person) => person.rsvp_status === "sent")) return "sent"
   if (people.length > 0 && people.every((person) => person.review_status === "reviewed")) {
     return "reviewed"
   }
@@ -175,7 +182,7 @@ type MailedExport = "rsvp" | "confirm"
 
 function wasMailed(person: Registration, kind: MailedExport) {
   if (kind === "confirm") return person.qr_status === "sent"
-  return person.rsvp_status !== "none"
+  return person.rsvp_status === "sent"
 }
 
 function mailedPeople(teams: Team[], kind: MailedExport) {
@@ -207,7 +214,7 @@ function mailedCsv(rows: Registration[]) {
 }
 
 function mailedFile(kind: MailedExport, venue = "") {
-  const base = kind === "rsvp" ? "fetchathon-rsvp-mailed" : "fetchathon-confirm-mailed"
+  const base = kind === "rsvp" ? "fetchathon-rsvp-sent" : "fetchathon-confirm-mailed"
   if (!venue) return `${base}.csv`
   return venueCsvName(venue).replace(/^fetchathon-/, `${base}-`)
 }
@@ -359,7 +366,7 @@ export function TeamBoard({
             }}
             aria-label="Which mailed people to download"
           >
-            <option value="rsvp">RSVP mailed</option>
+            <option value="rsvp">RSVP sent</option>
             <option value="confirm">Confirm mailed</option>
           </select>
           <Button
