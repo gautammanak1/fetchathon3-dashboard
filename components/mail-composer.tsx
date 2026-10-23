@@ -20,6 +20,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Card,
   CardContent,
@@ -39,6 +40,7 @@ import type { RosterPayload } from "@/lib/types"
 
 type Audience = "roster" | "venue" | "confirmed" | "custom"
 type Kind = "rsvp" | "reject" | "custom"
+type NotePack = "rsvp" | "confirm"
 
 const DRAFT_KEY = "fetchathon-mail-draft"
 const SAMPLE = {
@@ -60,6 +62,10 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
   const [audience, setAudience] = React.useState<Audience>("venue")
   const [venue, setVenue] = React.useState("")
   const [emails, setEmails] = React.useState("")
+  const [pack, setPack] = React.useState<NotePack>("rsvp")
+  const [selectedIds, setSelectedIds] = React.useState<string[]>([])
+  const [pickVenue, setPickVenue] = React.useState("")
+  const [pickQuery, setPickQuery] = React.useState("")
   const [templates, setTemplates] = React.useState<MailTemplate[]>([])
   const [busy, setBusy] = React.useState(false)
   const [result, setResult] = React.useState<string | null>(null)
@@ -125,6 +131,35 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
     )
   }, [kind, templateName, templateId, subject, body, audience, venue, emails])
 
+  const notePool = React.useMemo(() => {
+    return (data?.registrations || []).filter((row) => {
+      if (!COMPOSE_EMAIL_RE.test(row.email.trim().toLowerCase())) return false
+      if (pack === "confirm") return row.qr_status === "sent"
+      return row.rsvp_status !== "none"
+    })
+  }, [data, pack])
+
+  const noteVenues = React.useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const row of notePool) {
+      const label = mailVenue(row.city, row.metro).label
+      counts.set(label, (counts.get(label) || 0) + 1)
+    }
+    return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]))
+  }, [notePool])
+
+  const visiblePeople = React.useMemo(() => {
+    const query = pickQuery.trim().toLowerCase()
+    return notePool.filter((row) => {
+      if (pickVenue && mailVenue(row.city, row.metro).label !== pickVenue) return false
+      if (!query) return true
+      return [row.name, row.email, row.team_id_display, row.team_id]
+        .join(" ")
+        .toLowerCase()
+        .includes(query)
+    })
+  }, [notePool, pickQuery, pickVenue])
+
   const addressBook = React.useMemo(() => {
     const venues = new Map<string, { people: number; mailed: number; confirmed: number; rejected: number }>()
     let people = 0
@@ -151,17 +186,31 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
 
   const selectedVenue = addressBook.venues.find(([label]) => label === venue)
   const recipientCount =
-    audience === "roster"
-      ? addressBook.people
-      : audience === "venue"
-        ? selectedVenue?.[1].people || 0
-        : audience === "confirmed"
-          ? addressBook.confirmMailed
-          : parseEmailList(emails).length
+    kind === "custom"
+      ? selectedIds.length
+      : audience === "roster"
+        ? addressBook.people
+        : audience === "venue"
+          ? selectedVenue?.[1].people || 0
+          : audience === "confirmed"
+            ? addressBook.confirmMailed
+            : parseEmailList(emails).length
 
+  const previewPerson = visiblePeople.find((row) => selectedIds.includes(row.id)) || visiblePeople[0]
+  const previewPlace = mailVenue(previewPerson?.city || "Gurugram", previewPerson?.metro || "Gurugram")
   const preview = {
-    subject: fillTemplate(subject, SAMPLE) || "Subject",
-    body: fillTemplate(body, SAMPLE) || "<p>Your message will show here.</p>",
+    subject: fillTemplate(subject, {
+      ...SAMPLE,
+      venue: previewPlace.label,
+      map: previewPlace.mapUrl || "",
+      team: previewPerson?.team_id_display || SAMPLE.team,
+    }) || "Subject",
+    body: fillTemplate(body, {
+      ...SAMPLE,
+      venue: previewPlace.label,
+      map: previewPlace.mapUrl || "",
+      team: previewPerson?.team_id_display || SAMPLE.team,
+    }) || "<p>Your message will show here.</p>",
   }
   const officialPreview =
     kind === "reject"
@@ -217,7 +266,18 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
       const response = await fetch("/api/mail/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ kind, subject, body, audience, venue, emails, test, force }),
+        body: JSON.stringify({
+          kind,
+          subject,
+          body,
+          audience: kind === "custom" ? "selected" : audience,
+          venue,
+          emails,
+          ids: kind === "custom" ? selectedIds : undefined,
+          pack: kind === "custom" ? pack : undefined,
+          test,
+          force,
+        }),
       })
       const payload = (await response.json()) as { error?: string; note?: string }
       if (!response.ok) {
@@ -238,13 +298,25 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
     (kind !== "custom" || Boolean(subject.trim() && body.trim())) &&
     (audience !== "venue" || Boolean(venue))
   const audienceLabel =
-    audience === "roster"
-      ? `everyone on the roster (${recipientCount})`
-      : audience === "venue"
-        ? `${venue || "the selected location"} (${recipientCount})`
-        : audience === "confirmed"
-          ? `people who already received the confirm mail (${recipientCount})`
-          : `${recipientCount} typed ${recipientCount === 1 ? "address" : "addresses"}`
+    kind === "custom"
+      ? `${recipientCount} selected ${pack === "confirm" ? "confirm-mailed" : "RSVP-sent"} ${recipientCount === 1 ? "person" : "people"}`
+      : audience === "roster"
+        ? `everyone on the roster (${recipientCount})`
+        : audience === "venue"
+          ? `${venue || "the selected location"} (${recipientCount})`
+          : audience === "confirmed"
+            ? `people who already received the confirm mail (${recipientCount})`
+            : `${recipientCount} typed ${recipientCount === 1 ? "address" : "addresses"}`
+
+  const togglePerson = (id: string) => {
+    setSelectedIds((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    )
+  }
+
+  const selectVisible = () => {
+    setSelectedIds((current) => [...new Set([...current, ...visiblePeople.map((row) => row.id)])])
+  }
 
   return (
     <div className="grid gap-4 px-4 font-normal font-sans antialiased lg:grid-cols-[minmax(0,1fr)_18rem] lg:px-6">
@@ -303,12 +375,108 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
                 <MailEditor value={body} onChange={setBody} />
                 <p className="text-sm text-muted-foreground">
                   Use {"{{name}}"}, {"{{team}}"}, {"{{venue}}"}, {"{{map}}"}, and {"{{confirm_url}}"}.
-                  Each person gets the location they chose. Bengaluru gets Presidency University and its map. Add an image from the toolbar.
+                  RSVP-sent people also get their location, map, and the location note. Confirm-mailed people get that plus the same team QR from the confirm mail.
                 </p>
               </div>
             </>
           ) : null}
 
+          {kind === "custom" ? (
+            <div className="grid gap-3">
+              <Label>Send to</Label>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    ["rsvp", "RSVP sent"],
+                    ["confirm", "Confirm mailed"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    variant={pack === value ? "default" : "outline"}
+                    onClick={() => {
+                      setPack(value)
+                      setSelectedIds([])
+                      setPickVenue("")
+                    }}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {pack === "confirm"
+                  ? "Click people who already received the confirm mail. The note includes their location and the same team QR."
+                  : "Click people whose RSVP was sent. The note includes the location, map, and location update for the venue they chose."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant={pickVenue === "" ? "default" : "outline"}
+                  onClick={() => setPickVenue("")}
+                >
+                  All locations ({notePool.length})
+                </Button>
+                {noteVenues.map(([label, count]) => (
+                  <Button
+                    key={label}
+                    type="button"
+                    size="xs"
+                    variant={pickVenue === label ? "default" : "outline"}
+                    onClick={() => setPickVenue(label)}
+                  >
+                    {label} ({count})
+                  </Button>
+                ))}
+              </div>
+              <Input
+                value={pickQuery}
+                onChange={(event) => setPickQuery(event.target.value)}
+                placeholder="Search name, email, or team"
+                aria-label="Search people"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="xs" variant="outline" onClick={selectVisible}>
+                  Select visible ({visiblePeople.length})
+                </Button>
+                <Button type="button" size="xs" variant="ghost" onClick={() => setSelectedIds([])}>
+                  Clear
+                </Button>
+                <p className="text-sm text-muted-foreground">{selectedIds.length} selected</p>
+              </div>
+              <ul className="grid max-h-80 gap-1 overflow-y-auto rounded-lg border p-2">
+                {visiblePeople.length === 0 ? (
+                  <li className="px-2 py-3 text-sm text-muted-foreground">No one in this list.</li>
+                ) : (
+                  visiblePeople.map((row) => {
+                    const picked = selectedIds.includes(row.id)
+                    const place = mailVenue(row.city, row.metro)
+                    return (
+                      <li key={row.id}>
+                        <label className="flex w-full cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted">
+                          <Checkbox
+                            checked={picked}
+                            onCheckedChange={() => togglePerson(row.id)}
+                            aria-label={`Select ${row.name || row.email}`}
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm">{row.name || row.email}</span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {row.email} · {row.team_id_display || "Solo"} · {place.label}
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    )
+                  })
+                )}
+              </ul>
+            </div>
+          ) : null}
+
+          {kind === "custom" ? null : (
           <div className="grid gap-2">
             <Label>Send to</Label>
             <div className="flex flex-wrap gap-2">
@@ -371,6 +539,7 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
               </p>
             ) : null}
           </div>
+          )}
 
           <div className="grid gap-2">
             <Label>Email preview</Label>
@@ -379,8 +548,12 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
                 title="Email preview"
                 sandbox=""
                 srcDoc={composeMessageHtml(preview.subject, preview.body, {
-                  label: SAMPLE.venue,
-                  mapUrl: SAMPLE.map,
+                  label: previewPlace.label,
+                  mapUrl: previewPlace.mapUrl,
+                  note: previewPlace.note,
+                  imageUrl: previewPlace.imageUrl,
+                  qr: pack === "confirm" ? "preview" : false,
+                  teamId: previewPerson?.team_id_display || "",
                 })}
                 className="h-[640px] w-full rounded-xl border bg-[#efeafc]"
               />
@@ -414,7 +587,7 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
                       ? `This sends the location RSVP to ${audienceLabel}. Anyone who already has an RSVP mail is left out.`
                       : kind === "reject"
                         ? `This sends the Fetch-A-Thon 4.0 note to ${audienceLabel} who have not received a reject mail yet.`
-                        : `This sends “${subject.trim() || "this message"}” to ${audienceLabel}. It does not change RSVP or confirm status.`}
+                        : `This sends “${subject.trim() || "this message"}” to ${audienceLabel}. ${pack === "confirm" ? "Each mail includes their location and the same team QR." : "Each mail includes their location, map, and location note."} It does not change RSVP or confirm status.`}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

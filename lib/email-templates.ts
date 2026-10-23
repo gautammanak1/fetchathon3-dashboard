@@ -448,11 +448,11 @@ function rsvpChoiceButtons(confirmUrl: string) {
     <tr>
       <td class="btncol btnspace" width="50%" valign="top" style="width:50%;padding:0 8px 0 0;">
         ${choiceButton(confirmUrl, "&#10003;&nbsp; Absolutely, I'm In!", "#2ebd4f")}
-      </td>
+            </td>
       <td class="btncol" width="50%" valign="top" style="width:50%;padding:0 0 0 8px;">
         ${choiceButton(laterUrl(confirmUrl), "Next Time, May Be", "#d39a9a")}
-      </td>
-    </tr>
+                  </td>
+                </tr>
   </table>`
 }
 
@@ -463,10 +463,10 @@ function eventDateBox() {
         <table role="presentation" cellpadding="0" cellspacing="0" style="border:1px solid #f3c1c1;border-radius:6px;">
           <tr><td align="center" style="background:#fdecec;color:#e23b3b;font-family:${FONT};font-size:9px;font-weight:700;letter-spacing:0.04em;padding:2px 6px;">OCT</td></tr>
           <tr><td align="center" style="font-family:${FONT};font-size:16px;font-weight:700;color:#222;padding:2px 6px 4px;">24</td></tr>
-        </table>
-      </td>
+              </table>
+            </td>
       <td valign="middle" style="padding:12px;font-family:${FONT};font-size:16px;line-height:1.4;color:#222;">Saturday, ${escapeHtml(EVENT_DATE)}</td>
-    </tr>
+          </tr>
   </table>`
 }
 
@@ -498,7 +498,7 @@ function prizeFitTable(items: Array<[string, string, string]> = PRIZES) {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border-top:1px solid #ececec;">
     <tr>
       <td colspan="2" style="padding:12px 12px 4px;font-family:${FONT};font-size:13px;font-weight:700;color:#111;">Prizes</td>
-    </tr>
+          </tr>
     ${items.map(([title, amount, detail]) => `<tr>
       <td valign="top" style="padding:8px 8px 8px 12px;border-top:1px solid #f2f2f2;font-family:${FONT};font-size:14px;line-height:1.4;color:#222;">${escapeHtml(title)}<br><span style="font-size:12px;line-height:1.4;color:#6b6b6b;">${escapeHtml(detail)}</span></td>
       <td class="amt" width="92" valign="top" align="right" style="width:92px;padding:8px 12px 8px 8px;border-top:1px solid #f2f2f2;font-family:${FONT};font-size:14px;line-height:1.4;font-weight:700;color:#222;white-space:nowrap;">${escapeHtml(amount)}</td>
@@ -733,7 +733,7 @@ export function qrHtml(input: {
     <p style="margin:22px 0 12px;font-size:18px;line-height:1.3;font-weight:700;">Agenda</p>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #ececec;border-radius:8px;">
       ${agendaTable(inPerson)}
-    </table>
+              </table>
     <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#222;">There is a gaming activity on the day as well. Join in between builds.</p>
     <p style="margin:22px 0 14px;font-size:18px;line-height:1.3;font-weight:700;text-align:center;">Your details</p>
     ${messageBox(`${fitTable(rows)}${prizeFitTable()}`)}
@@ -908,25 +908,48 @@ function sanitizeMailHtml(html: string) {
     .replace(/\son\w+=(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "")
 }
 
-function locationAlreadyIn(body: string, place?: { label: string; mapUrl: string | null }) {
+export type ComposePlace = {
+  label: string
+  mapUrl: string | null
+  note?: string
+  imageUrl?: string | null
+  qr?: "attach" | "preview" | false
+  teamId?: string
+}
+
+function locationAlreadyIn(body: string, place?: ComposePlace) {
   if (!place?.label) return true
-  if (place.mapUrl && body.includes(place.mapUrl)) return true
+  if (place.note && place.note !== "This is your location." && body.includes(place.note)) return true
   return /your location/i.test(body) && body.toLowerCase().includes(place.label.toLowerCase())
 }
 
-function locationRow(body: string, place?: { label: string; mapUrl: string | null }) {
+function locationRow(body: string, place?: ComposePlace) {
   if (locationAlreadyIn(body, place) || !place?.label) return ""
-  const map = place.mapUrl ? `<br>${textLink(place.mapUrl, place.mapUrl)}` : ""
-  return `<tr><td class="pad" style="padding:0 28px 8px;font-family:${FONT};font-size:15px;line-height:1.55;color:#1a1a1a;"><strong>Your location:</strong> ${escapeHtml(place.label)}${map}</td></tr>`
+  const note = place.note && place.note !== "This is your location." ? place.note : ""
+  const map = place.mapUrl && !body.includes(place.mapUrl) ? `<br>${textLink(place.mapUrl, "Open your location")}` : ""
+  const photo = place.imageUrl
+    ? `<br><img src="${escapeHtml(place.imageUrl)}" alt="Buildfin building at the updated Gurugram location" width="520" style="display:block;width:100%;max-width:520px;height:auto;margin-top:10px;border:0;border-radius:8px;">`
+    : ""
+  return `<tr><td class="pad" style="padding:8px 28px;font-family:${FONT};font-size:15px;line-height:1.55;color:#1a1a1a;"><strong>Your location:</strong> ${escapeHtml(place.label)}${note ? `<br><span style="color:#5c5678;">${escapeHtml(note)}</span>` : ""}${map}${photo}</td></tr>`
+}
+
+function qrRow(place?: ComposePlace) {
+  if (!place?.qr) return ""
+  const team = place.teamId ? `${escapeHtml(place.teamId)} · ` : ""
+  const image =
+    place.qr === "attach"
+      ? `<img src="cid:teamqr" width="240" alt="Team venue QR" style="display:block;width:240px;height:auto;margin:12px auto 0;border:0;background:#ffffff;">`
+      : `<p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:#5c5678;font-family:${FONT};">The same team QR from the confirm mail is attached.</p>`
+  return `<tr><td class="pad" style="padding:8px 28px 16px;font-family:${FONT};text-align:center;"><p style="margin:0;font-size:18px;line-height:1.3;font-weight:700;color:#1a1548;">Your team QR</p><p style="margin:8px 0 0;font-size:14px;line-height:1.5;color:#2c2750;">${team}${escapeHtml(place.label)}. No entry without this QR. One QR is for the whole team.</p>${image}</td></tr>`
 }
 
 export function composeMessageHtml(
   subject: string,
   body: string,
-  place?: { label: string; mapUrl: string | null },
+  place?: ComposePlace,
 ) {
   const trimmed = body.trim()
-  const location = locationRow(trimmed, place)
+  const location = `${locationRow(trimmed, place)}${qrRow(place)}`
   if (/<[a-z][\s\S]*>/i.test(trimmed)) {
     const inner = `<tr><td class="pad" style="padding:28px 28px 8px;font-family:${FONT};color:#1a1a1a;font-size:16px;line-height:1.55;">${sanitizeMailHtml(trimmed)}</td></tr>`
     return wrapEmail(subject, `${inner}${location}${mailFooter()}`)
@@ -946,7 +969,7 @@ export function composeMessageHtml(
 
 export function composeMessageText(
   body: string,
-  place?: { label: string; mapUrl: string | null },
+  place?: ComposePlace,
 ) {
   const text = body
     .replace(/<br\s*\/?>/gi, "\n")
@@ -955,7 +978,17 @@ export function composeMessageText(
     .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&")
     .trim()
-  if (locationAlreadyIn(text, place) || !place?.label) return text
-  const map = place.mapUrl ? `\n${place.mapUrl}` : ""
-  return `${text}\n\nYour location: ${place.label}${map}`.trim()
+  const extra: string[] = []
+  if (!locationAlreadyIn(text, place) && place?.label) {
+    const note = place.note && place.note !== "This is your location." ? `\n${place.note}` : ""
+    const map = place.mapUrl ? `\n${place.mapUrl}` : ""
+    const photo = place.imageUrl ? `\nBuilding photo: ${place.imageUrl}` : ""
+    extra.push(`Your location: ${place.label}${note}${map}${photo}`)
+  }
+  if (place?.qr) {
+    extra.push(
+      `Your team QR${place.teamId ? ` (${place.teamId})` : ""} is attached. No entry without this QR. One QR is for the whole team.`,
+    )
+  }
+  return [text, ...extra].filter(Boolean).join("\n\n").trim()
 }

@@ -3,7 +3,8 @@ import { NextResponse } from "next/server"
 import { getAdminSession } from "@/lib/auth"
 import { fillTemplate, readableName } from "@/lib/compose-mail"
 import { mailVenue } from "@/lib/event-venues"
-import { loadRoster } from "@/lib/roster"
+import { deriveTeamQrToken } from "@/lib/qr"
+import { loadRosterFast } from "@/lib/roster"
 import { rsvpConfirmUrl } from "@/lib/rsvp-confirm"
 import { resolveRecipients, sendComposedMail, type ComposeAudience } from "@/lib/send-compose"
 import { sendOfficialMail, sendOfficialTest } from "@/lib/send-official"
@@ -13,39 +14,56 @@ import { teamKey } from "@/lib/team-qr-store"
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
-async function testRecipient(email: string) {
-  try {
-    const roster = await loadRoster()
-    const row = roster.registrations.find(
-      (item) => item.email.trim().toLowerCase() === email.toLowerCase(),
-    )
-    if (row) {
-      return {
-        email,
-        name: readableName(row.name, email),
-        team: row.team_id_display || row.team_id || "",
-        venue: mailVenue(row.city, row.metro).label,
-        map: mailVenue(row.city, row.metro).mapUrl || "",
-        confirm_url: rsvpConfirmUrl(teamKey(row)),
-      }
-    }
-  } catch (error) {
-    console.error("test mail name lookup failed", error)
-  }
-  return {
+async function testRecipient(email: string, pack: "rsvp" | "confirm") {
+  const blank = {
+    id: "",
     email,
     name: readableName("", email),
     team: "",
     venue: "",
     map: "",
     confirm_url: "",
+    note: "",
+    imageUrl: "",
+    attachQr: false,
+    qrToken: "",
+    teamKey: "",
   }
+  try {
+    const roster = await loadRosterFast()
+    const row = roster.registrations.find(
+      (item) => item.email.trim().toLowerCase() === email.toLowerCase(),
+    )
+    if (row) {
+      const place = mailVenue(row.city, row.metro)
+      const key = teamKey(row)
+      return {
+        id: row.id,
+        email,
+        name: readableName(row.name, email),
+        team: row.team_id_display || row.team_id || "",
+        venue: place.label,
+        map: place.mapUrl || "",
+        confirm_url: rsvpConfirmUrl(key),
+        note: place.note,
+        imageUrl: place.imageUrl || "",
+        attachQr: pack === "confirm" && row.qr_status === "sent",
+        qrToken: row.qr_token || deriveTeamQrToken(key),
+        teamKey: key,
+      }
+    }
+  } catch (error) {
+    console.error("test mail name lookup failed", error)
+  }
+  return blank
 }
 
 function audienceFrom(body: {
   audience?: string
   venue?: string
   emails?: string
+  ids?: string[]
+  pack?: string
 }): ComposeAudience | null {
   if (body.audience === "roster") return { kind: "roster" }
   if (body.audience === "venue") {
@@ -55,6 +73,13 @@ function audienceFrom(body: {
   }
   if (body.audience === "confirmed") return { kind: "confirmed" }
   if (body.audience === "custom") return { kind: "custom", emails: String(body.emails || "") }
+  if (body.audience === "selected") {
+    const ids = [...new Set((body.ids || []).map((id) => String(id || "").trim()).filter(Boolean))]
+    if (!ids.length || ids.length > 2000) return null
+    const pack = body.pack === "confirm" ? "confirm" : body.pack === "rsvp" ? "rsvp" : null
+    if (!pack) return null
+    return { kind: "selected", ids, pack }
+  }
   return null
 }
 
@@ -73,6 +98,8 @@ export async function POST(request: Request) {
     audience?: string
     venue?: string
     emails?: string
+    ids?: string[]
+    pack?: string
     test?: boolean
     force?: boolean
     kind?: string
@@ -106,8 +133,9 @@ export async function POST(request: Request) {
   }
 
   try {
+    const pack = body?.pack === "confirm" ? "confirm" : "rsvp"
     const recipients = body?.test
-      ? [await testRecipient(session.email)]
+      ? [await testRecipient(session.email, pack)]
       : await resolveRecipients(audience!)
     if (recipients.length === 0) {
       return NextResponse.json({ error: "No valid email addresses to send to" }, { status: 400 })
