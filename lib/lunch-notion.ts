@@ -16,6 +16,17 @@ export type LunchNotionPage = {
   created: boolean
 }
 
+export type LunchAgentOrder = {
+  pageId: string
+  name: string
+  email: string
+  address: string
+  teamId: string
+  role: string
+  location: string
+  code: string
+}
+
 function token() {
   return (process.env.NOTION_TOKEN || process.env.NOTION_API_KEY || "").trim()
 }
@@ -117,6 +128,86 @@ async function patchStatus(pageId: string, name: "Collected" | "Ordered") {
     method: "PATCH",
     body: JSON.stringify({ properties: { Status: statusSelect(name) } }),
   })
+}
+
+function plain(prop: unknown) {
+  if (!prop || typeof prop !== "object") return ""
+  const value = prop as Record<string, unknown>
+  const type = String(value.type || "")
+  if (type === "title" || type === "rich_text") {
+    const parts = Array.isArray(value[type]) ? value[type] : []
+    return parts
+      .map((part) =>
+        part && typeof part === "object" ? String((part as { plain_text?: string }).plain_text || "") : "",
+      )
+      .join("")
+      .trim()
+  }
+  if (type === "email") return String(value.email || "").trim()
+  if (type === "url") return String(value.url || "").trim()
+  if (type === "number" && value.number != null) return String(value.number).padStart(4, "0")
+  if (type === "select") {
+    const selected = value.select
+    if (selected && typeof selected === "object") return String((selected as { name?: string }).name || "").trim()
+  }
+  return ""
+}
+
+function orderFromPage(page: Record<string, unknown>, code: string): LunchAgentOrder | null {
+  const pageId = String(page.id || "")
+  const props = page.properties
+  if (!pageId || !props || typeof props !== "object") return null
+  const columns = props as Record<string, unknown>
+  return {
+    pageId,
+    name: plain(columns.Name) || "Untitled",
+    email: plain(columns.Email),
+    address: plain(columns.Address),
+    teamId: plain(columns["Team ID"]),
+    role: plain(columns.Role) || "Member",
+    location: plain(columns.Location),
+    code,
+  }
+}
+
+export async function findLunchOrderByCode(code: string): Promise<LunchAgentOrder | null> {
+  if (!isLunchNotionConfigured()) return null
+  const filters = [
+    { property: "Verification code", rich_text: { equals: code } },
+    { property: "Verification code", number: { equals: Number(code) } },
+  ]
+  let lastError = ""
+  for (const filter of filters) {
+    const response = await fetch(`${NOTION_API}/databases/${databaseId()}/query`, {
+      method: "POST",
+      headers: headers(),
+      body: JSON.stringify({ filter, page_size: 1 }),
+      cache: "no-store",
+    })
+    if (response.status === 404) {
+      throw new Error("The lunch sheet is not shared with this dashboard, so the pickup code cannot be checked")
+    }
+    if (!response.ok) {
+      lastError = (await response.text()).slice(0, 180)
+      continue
+    }
+    const data = (await response.json()) as { results?: unknown[] }
+    const page = Array.isArray(data.results) ? data.results[0] : null
+    if (!page || typeof page !== "object") return null
+    return orderFromPage(page as Record<string, unknown>, code)
+  }
+  throw new Error(`Lunch Notion could not look up the pickup code: ${lastError}`)
+}
+
+export async function collectExistingLunchPage(pageId: string) {
+  if (!pageId || !isLunchNotionConfigured()) return "skipped" as const
+  try {
+    await patchStatus(pageId, "Collected")
+    return "updated" as const
+  } catch (error) {
+    console.error("lunch notion collect failed", error)
+    return "failed" as const
+  }
 }
 
 export async function markLunchCollected(people: LunchNotionPerson[], at: string) {

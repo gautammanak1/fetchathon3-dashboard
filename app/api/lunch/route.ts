@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       return NextResponse.json(result, { status: result.status })
     }
     if (!body?.scan?.trim()) {
-      return NextResponse.json({ error: "Scan a venue QR" }, { status: 400 })
+      return NextResponse.json({ error: "Scan a lunch QR" }, { status: 400 })
     }
     const result = await collectLunch(body.scan)
     return NextResponse.json(result, { status: result.status })

@@ -74,6 +74,8 @@ export function CheckInScanner({
   alreadyLabel = "Already joined",
   freshLabel = "Checked in",
   joinedLabel = "Joined",
+  manualPlaceholder = "Or paste the pass link",
+  manualLabel = "Pass link",
 }: {
   endpoint?: string
   peopleLabel?: string
@@ -87,6 +89,8 @@ export function CheckInScanner({
   alreadyLabel?: string
   freshLabel?: string
   joinedLabel?: string
+  manualPlaceholder?: string
+  manualLabel?: string
 } = {}) {
   const regionId = React.useId().replace(/:/g, "")
   const scannerRef = React.useRef<import("html5-qrcode").Html5Qrcode | null>(null)
@@ -291,8 +295,8 @@ export function CheckInScanner({
               <Input
                 value={manual}
                 onChange={(event) => setManual(event.target.value)}
-                placeholder="Or paste the pass link"
-                aria-label="Pass link"
+                placeholder={manualPlaceholder}
+                aria-label={manualLabel}
               />
               <Button type="submit" variant="outline" disabled={busy || !manual.trim()}>
                 {submitLabel}

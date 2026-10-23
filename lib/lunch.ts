@@ -1,6 +1,14 @@
 import { db, isoTime } from "@/lib/db"
 import { tokenFromScan, type CheckInMember } from "@/lib/checkin"
-import { markLunchCollected, releaseLunchNotion } from "@/lib/lunch-notion"
+import { normalizeTeamId } from "@/lib/fields"
+import {
+  collectExistingLunchPage,
+  findLunchOrderByCode,
+  isLunchNotionConfigured,
+  markLunchCollected,
+  releaseLunchNotion,
+  type LunchAgentOrder,
+} from "@/lib/lunch-notion"
 import { loadStoredRoster } from "@/lib/roster"
 import { matchDerivedTeamQr, teamKey } from "@/lib/team-qr-store"
 import type { Registration } from "@/lib/types"
@@ -86,7 +94,114 @@ function memberFrom(row: Registration, at: string | null, newly: boolean): Check
   }
 }
 
+function lunchCodeFromScan(raw: string) {
+  const text = raw.trim()
+  return /^\d{4}$/.test(text) ? text : null
+}
+
+function sameTeam(row: Registration, teamId: string) {
+  const wanted = normalizeTeamId(teamId)
+  if (!wanted) return false
+  return normalizeTeamId(row.team_id_display || row.team_id) === wanted
+}
+
+function personForOrder(rows: Registration[], order: LunchAgentOrder) {
+  const email = order.email.trim().toLowerCase()
+  if (email) {
+    const byEmail = rows.find((row) => row.email.trim().toLowerCase() === email)
+    if (byEmail) return byEmail
+  }
+  const address = order.address.trim().toLowerCase()
+  if (address) {
+    const byAddress = rows.find((row) => row.address.trim().toLowerCase() === address)
+    if (byAddress) return byAddress
+  }
+  const name = order.name.trim().toLowerCase()
+  if (name) {
+    const byName = rows.filter(
+      (row) => row.name.trim().toLowerCase() === name && sameTeam(row, order.teamId),
+    )
+    if (byName.length === 1) return byName[0]
+  }
+  return null
+}
+
+async function collectAgentLunch(code: string) {
+  if (!isLunchNotionConfigured()) {
+    return {
+      ok: false as const,
+      status: 503,
+      error: "The lunch sheet is not configured, so this pickup code cannot be checked",
+    }
+  }
+  const order = await findLunchOrderByCode(code)
+  if (!order) {
+    return { ok: false as const, status: 404, error: "This lunch QR is not on the lunch sheet" }
+  }
+  const roster = await loadStoredRoster()
+  const matched = roster ? personForOrder(roster.registrations, order) : null
+  const row = matched || {
+    id: `lunch:${code}`,
+    name: order.name,
+    email: order.email,
+    role: order.role,
+    organization: "",
+    city: order.location,
+    team_id: normalizeTeamId(order.teamId) || code,
+    team_id_display: order.teamId || code,
+  }
+  const key = matched ? teamKey(matched) : row.team_id
+  const sql = sqlOrThrow()
+  const now = new Date().toISOString()
+  const inserted = await sql<Array<{ registration_id: string }>>`
+    insert into lunch_pickups (
+      registration_id, name, email, role, organization, team_key,
+      team_id_display, venue, token, collected_at
+    ) values (
+      ${row.id},
+      ${row.name || "Untitled"},
+      ${row.email || ""},
+      ${row.role || "Member"},
+      ${row.organization || ""},
+      ${key},
+      ${row.team_id_display || key},
+      ${row.city || order.location || ""},
+      ${code},
+      ${now}
+    )
+    on conflict (registration_id) do nothing
+    returning registration_id
+  `
+  const created = Boolean(inserted[0])
+  const notion = created ? await collectExistingLunchPage(order.pageId) : ("skipped" as const)
+  if (created && notion === "updated") {
+    await sql`
+      update lunch_pickups
+      set notion_page_id = ${order.pageId}, notion_created = false
+      where registration_id = ${row.id}
+    `
+  }
+  const saved = await sql<Array<Record<string, unknown>>>`
+    select * from lunch_pickups where registration_id = ${row.id}
+  `
+  const pickup = saved[0] ? asPickup(saved[0]) : null
+  return {
+    ok: true as const,
+    status: 200,
+    already: !created,
+    teamId: row.team_id_display || key,
+    venue: row.city || order.location || "",
+    notion,
+    members: [memberFrom(row as Registration, pickup?.collected_at || now, created)],
+    note: !created
+      ? `${row.name} already collected lunch`
+      : notionNote(1, notion === "skipped" ? "skipped" : notion),
+  }
+}
+
 export async function collectLunch(raw: string) {
+  const code = lunchCodeFromScan(raw)
+  if (code) return collectAgentLunch(code)
   const token = tokenFromScan(raw)
   if (!token) {
     return { ok: false as const, status: 400, error: "That code is not a Fetch-A-Thon pass" }
