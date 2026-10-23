@@ -10,8 +10,12 @@ export const EVENT_DATE = "24 October 2026"
 const GURUGRAM_MAP = "https://maps.app.goo.gl/NvugXhj6bKTMFKUh6"
 const GURUGRAM_IMAGE =
   "https://res.cloudinary.com/doesqlfyi/image/upload/fetchathon3/buildfin-udyog-vihar.jpg"
-const GURUGRAM_NOTE =
-  "Location updated. 388, Udyog Vihar Phase 3 Rd, Phase II, Udyog Vihar, Sector 20, Gurugram, Haryana 122016. Nearest metro: Rapid Metro – Moulsari Avenue and Rapid Metro – Cyber City. The building in the photo is Buildfin."
+const GURUGRAM_ADDRESS =
+  "388, Udyog Vihar Phase 3 Rd, Phase II, Udyog Vihar, Sector 20, Gurugram, Haryana 122016"
+const GURUGRAM_METRO =
+  "Nearest metro: Rapid Metro – Moulsari Avenue and Rapid Metro – Cyber City"
+const GURUGRAM_CAPTION = "The building in the photo is Buildfin."
+const GURUGRAM_NOTE = `Location updated. ${GURUGRAM_ADDRESS}. ${GURUGRAM_METRO}. ${GURUGRAM_CAPTION}`
 
 const MAPS = {
   roorkee: "https://maps.app.goo.gl/3ynpRgj136u87WBv6",
@@ -28,6 +32,9 @@ export type MailVenue = {
   mapUrl: string | null
   note: string
   imageUrl?: string | null
+  address?: string
+  metroNote?: string
+  imageCaption?: string
 }
 
 export const PRIZES: Array<[string, string, string]> = [
@@ -71,6 +78,9 @@ export function mailVenue(city: string, metro = ""): MailVenue {
       mapUrl: MAPS.gurugram,
       note: GURUGRAM_NOTE,
       imageUrl: GURUGRAM_IMAGE,
+      address: GURUGRAM_ADDRESS,
+      metroNote: GURUGRAM_METRO,
+      imageCaption: GURUGRAM_CAPTION,
     }
   }
   if (text.includes("bengaluru") || text.includes("bangalore")) {

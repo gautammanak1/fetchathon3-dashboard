@@ -201,12 +201,14 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
   const preview = {
     subject: fillTemplate(subject, {
       ...SAMPLE,
+      name: previewPerson?.name || SAMPLE.name,
       venue: previewPlace.label,
       map: previewPlace.mapUrl || "",
       team: previewPerson?.team_id_display || SAMPLE.team,
     }) || "Subject",
     body: fillTemplate(body, {
       ...SAMPLE,
+      name: previewPerson?.name || SAMPLE.name,
       venue: previewPlace.label,
       map: previewPlace.mapUrl || "",
       team: previewPerson?.team_id_display || SAMPLE.team,
@@ -545,12 +547,16 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
             <Label>Email preview</Label>
             {kind === "custom" ? (
               <iframe
+                key={preview.body}
                 title="Email preview"
                 sandbox=""
                 srcDoc={composeMessageHtml(preview.subject, preview.body, {
                   label: previewPlace.label,
                   mapUrl: previewPlace.mapUrl,
                   note: previewPlace.note,
+                  address: previewPlace.address,
+                  metroNote: previewPlace.metroNote,
+                  imageCaption: previewPlace.imageCaption,
                   imageUrl: previewPlace.imageUrl,
                   qr: pack === "confirm" ? "preview" : false,
                   teamId: previewPerson?.team_id_display || "",

@@ -526,17 +526,13 @@ function rsvpShell(greeting: string, confirmUrl: string, message: string) {
 
 function eventDetailRows(row: Registration, members: Registration[]) {
   const venue = mailVenue(row.city, row.metro)
-  const note = venue.note && venue.note !== "This is your location." ? venue.note : ""
-  const photo = venue.imageUrl
-    ? `<br><img src="${escapeHtml(venue.imageUrl)}" alt="Buildfin building at the updated Gurugram location" width="520" style="display:block;width:100%;max-width:520px;height:auto;margin-top:10px;border:0;border-radius:8px;">`
-    : ""
   const people = members
     .map((member) => [clean(member.name), clean(member.role)].filter(Boolean).join(" · "))
     .filter(Boolean)
-  const rows: Array<[string, string]> = [
-    ["Location", `${escapeHtml(venue.label)}${note ? `<br><span style="color:#6b6b6b;">${escapeHtml(note)}</span>` : ""}${photo}`],
-  ]
-  if (venue.mapUrl) rows.push(["Map", textLink(venue.mapUrl, venue.mapUrl)])
+  const rows: Array<[string, string]> = [["Location", escapeHtml(venue.label)]]
+  if (venue.mapUrl && !venue.address && !venue.imageUrl) {
+    rows.push(["Map", textLink(venue.mapUrl, "Open your location")])
+  }
   rows.push(
     ["Discord", `${escapeHtml(DISCORD_NOTE)}<br>${textLink(discordInviteUrl(), "Join Discord")}`],
     ["Offer", "One month free ASI:One Pro and Agentverse Premium."],
@@ -556,7 +552,7 @@ export function rsvpHtml(
   confirmUrl = "",
 ) {
   const { venue, rows } = eventDetailRows(row, members)
-  const message = `${fitTable(rows)}${prizeFitTable()}`
+  const message = `${locationCardInner(venue)}${fitTable(rows)}${prizeFitTable()}`
   return wrapEmail(rsvpSubject(venue.label), `${rsvpShell(teamGreeting(row, members), confirmUrl, message)}${mailFooter()}`)
 }
 
@@ -736,7 +732,7 @@ export function qrHtml(input: {
               </table>
     <p style="margin:16px 0 0;font-size:15px;line-height:1.55;color:#222;">There is a gaming activity on the day as well. Join in between builds.</p>
     <p style="margin:22px 0 14px;font-size:18px;line-height:1.3;font-weight:700;text-align:center;">Your details</p>
-    ${messageBox(`${fitTable(rows)}${prizeFitTable()}`)}
+    ${messageBox(`${locationCardInner(venue)}${fitTable(rows)}${prizeFitTable()}`)}
     <p style="margin:22px 0 8px;font-size:18px;line-height:1.3;font-weight:700;">If you have any doubt</p>
     <p style="margin:0;font-size:15px;line-height:1.6;color:#222;">${escapeHtml(DISCORD_NOTE)}<br>${textLink(discordInviteUrl(), "Join Discord")}</p>
     <p style="margin:10px 0 0;font-size:15px;line-height:1.6;color:#222;">Email ${textLink(`mailto:${HELP_EMAIL}`, HELP_EMAIL)}<br>LinkedIn ${textLink(HELP_LINKEDIN, "gautammanak1")}</p>
@@ -758,11 +754,14 @@ function firstUrl(text: string) {
 function composeBlock(block: string) {
   const lines = block.split("\n").map((line) => line.trim()).filter(Boolean)
   if (lines.length === 0) return ""
-  const greeting = lines.length === 1 ? lines[0].match(/^Hi\s+(.+?)[,!]?\s*$/i) : null
-  if (greeting) {
-    const name = greeting[1].trim()
-    const line = !name || name.toLowerCase() === "there" ? "Hi," : `Hi ${name},`
-    return `<tr><td class="greet" style="padding:0 0 10px;font-family:${FONT};font-size:28px;line-height:1.2;font-weight:800;color:#1a1548;">${escapeHtml(line)}</td></tr>`
+  if (lines.length === 1) {
+    const lead = lines[0].match(/^(Hi\s+[^,]{1,80}),\s*(.*)$/i)
+    if (lead) {
+      const rest = lead[2].replace(/^[,\s]+/, "").trim()
+      const hello = `<tr><td class="greet" style="padding:0 0 10px;font-family:${FONT};font-size:28px;line-height:1.2;font-weight:800;color:#1a1548;">${escapeHtml(lead[1])},</td></tr>`
+      if (!rest) return hello
+      return `${hello}${sectionGap()}<tr><td style="padding:0;font-family:${FONT};font-size:16px;line-height:1.6;color:#2c2750;">${escapeHtml(rest)}</td></tr>`
+    }
   }
   if (/^for any queries/i.test(lines[0])) return ""
   if (/^fetch-a-thon\b/i.test(lines[0]) || /^fetch\.ai innovation lab$/i.test(lines[0])) return ""
@@ -790,10 +789,15 @@ function composeBlock(block: string) {
       `${eyebrow("Exclusive offer")}${copy ? bodyCopy(copy) : ""}${code ? `<p style="margin:12px 0 0;font-size:12px;letter-spacing:0.08em;text-transform:uppercase;color:#7a7598;font-family:${FONT};">Use code</p><p style="margin:4px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;line-height:1.2;font-weight:800;letter-spacing:0.12em;color:#5b45f5;">${escapeHtml(code)}</p>` : ""}`,
     )}</td></tr>`
   }
-  if (/^hackpack:/i.test(lines[0])) {
+  if (/^(hackpack|example agents|docs):/i.test(lines[0])) {
     const href = firstUrl(lines[0])
     if (!href) return ""
-    return `<tr><td>${mailButton(href, "Open the hackpack")}</td></tr>`
+    const label = /^hackpack:/i.test(lines[0])
+      ? "Open the hackpack"
+      : /^docs:/i.test(lines[0])
+        ? "Open the docs"
+        : "Example agents"
+    return `<tr><td>${mailButton(href, label)}</td></tr>`
   }
   if (/discord/i.test(block) && firstUrl(block)) {
     return `<tr><td style="padding:0 0 8px;font-family:${FONT};font-size:15px;line-height:1.55;color:#2c2750;">${escapeHtml(DISCORD_NOTE)}</td></tr><tr><td>${mailButton(firstUrl(block), "Join Discord", "#5865f2")}</td></tr>`
@@ -823,7 +827,15 @@ function composeBlock(block: string) {
       .join("")
     return `<tr><td>${softCard(`${eyebrow("Your details")}${copy}`)}</td></tr>`
   }
-  return `<tr><td style="padding:0;font-family:${FONT};font-size:16px;line-height:1.6;color:#2c2750;">${escapeHtml(lines.join("\n")).replace(/\n/g, "<br>")}</td></tr>`
+  const copy = lines
+    .map((line) => {
+      const href = firstUrl(line)
+      if (!href) return escapeHtml(line)
+      const label = line.replace(href, "").replace(/:\s*$/, "").trim()
+      return `${label ? `${escapeHtml(label)} ` : ""}${textLink(href, label ? "Open" : href)}`
+    })
+    .join("<br>")
+  return `<tr><td style="padding:0;font-family:${FONT};font-size:16px;line-height:1.6;color:#2c2750;">${copy}</td></tr>`
 }
 
 function rsvpFromCompose(subject: string, body: string) {
@@ -912,35 +924,142 @@ export type ComposePlace = {
   label: string
   mapUrl: string | null
   note?: string
+  address?: string
+  metroNote?: string
+  imageCaption?: string
   imageUrl?: string | null
   qr?: "attach" | "preview" | false
   teamId?: string
 }
 
-function locationAlreadyIn(body: string, place?: ComposePlace) {
-  if (!place?.label) return true
-  if (place.note && place.note !== "This is your location." && body.includes(place.note)) return true
-  return /your location/i.test(body) && body.toLowerCase().includes(place.label.toLowerCase())
-}
-
-function locationRow(body: string, place?: ComposePlace) {
-  if (locationAlreadyIn(body, place) || !place?.label) return ""
-  const note = place.note && place.note !== "This is your location." ? place.note : ""
-  const map = place.mapUrl && !body.includes(place.mapUrl) ? `<br>${textLink(place.mapUrl, "Open your location")}` : ""
+function locationCardInner(place?: {
+  label: string
+  mapUrl: string | null
+  note?: string
+  address?: string
+  metroNote?: string
+  imageCaption?: string
+  imageUrl?: string | null
+} | null) {
+  if (!place?.label) return ""
+  const address = place.address || ""
+  const metro = place.metroNote || ""
+  const caption = place.imageCaption || ""
+  const fallback =
+    !address && place.note && place.note !== "This is your location." ? place.note : ""
   const photo = place.imageUrl
-    ? `<br><img src="${escapeHtml(place.imageUrl)}" alt="Buildfin building at the updated Gurugram location" width="520" style="display:block;width:100%;max-width:520px;height:auto;margin-top:10px;border:0;border-radius:8px;">`
+    ? `<img src="${escapeHtml(place.imageUrl)}" alt="${escapeHtml(caption || "Venue building")}" width="520" style="display:block;width:100%;max-width:520px;height:auto;margin:14px 0 0;border:0;border-radius:12px;">`
     : ""
-  return `<tr><td class="pad" style="padding:8px 28px;font-family:${FONT};font-size:15px;line-height:1.55;color:#1a1a1a;"><strong>Your location:</strong> ${escapeHtml(place.label)}${note ? `<br><span style="color:#5c5678;">${escapeHtml(note)}</span>` : ""}${map}${photo}</td></tr>`
+  const map = place.mapUrl
+    ? `<div style="height:14px;font-size:0;line-height:0;">&nbsp;</div>${mailButton(place.mapUrl, "Open your location")}`
+    : ""
+  return softCard(
+    `${eyebrow("Your location")}<p style="margin:6px 0 0;font-size:22px;line-height:1.25;font-weight:800;color:#1a1548;font-family:${FONT};">${escapeHtml(place.label)}</p>${address ? bodyCopy(address) : ""}${metro ? bodyCopy(metro) : ""}${caption ? bodyCopy(caption) : ""}${fallback ? bodyCopy(fallback) : ""}${photo}${map}`,
+  )
 }
 
-function qrRow(place?: ComposePlace) {
+function qrCardInner(place?: ComposePlace) {
   if (!place?.qr) return ""
   const team = place.teamId ? `${escapeHtml(place.teamId)} · ` : ""
   const image =
     place.qr === "attach"
-      ? `<img src="cid:teamqr" width="240" alt="Team venue QR" style="display:block;width:240px;height:auto;margin:12px auto 0;border:0;background:#ffffff;">`
-      : `<p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:#5c5678;font-family:${FONT};">The same team QR from the confirm mail is attached.</p>`
-  return `<tr><td class="pad" style="padding:8px 28px 16px;font-family:${FONT};text-align:center;"><p style="margin:0;font-size:18px;line-height:1.3;font-weight:700;color:#1a1548;">Your team QR</p><p style="margin:8px 0 0;font-size:14px;line-height:1.5;color:#2c2750;">${team}${escapeHtml(place.label)}. No entry without this QR. One QR is for the whole team.</p>${image}</td></tr>`
+      ? `<img src="cid:teamqr" width="220" alt="Team venue QR" style="display:block;width:220px;height:auto;margin:14px auto 0;border:0;border-radius:12px;background:#ffffff;">`
+      : `<p style="margin:14px 0 0;font-size:14px;line-height:1.5;color:#5c5678;font-family:${FONT};">The same team QR from the confirm mail is attached to this email.</p>`
+  return `<div style="height:12px;font-size:0;line-height:0;">&nbsp;</div>${softCard(
+    `${eyebrow("Your team QR")}<p style="margin:8px 0 0;font-size:15px;line-height:1.5;color:#2c2750;font-family:${FONT};">${team}${escapeHtml(place.label)}. No entry without this QR. One QR is for the whole team.</p>${image}`,
+  )}`
+}
+
+function editorText(html: string) {
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/(div|h1|h2|h3|li)>/gi, "\n")
+    .replace(/<li[^>]*>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&mdash;/gi, "—")
+    .replace(/&ndash;/gi, "–")
+    .replace(/&rsquo;|&lsquo;/gi, "'")
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
+function restoreMailBreaks(text: string) {
+  let next = text.replace(/[ \t]+/g, " ").replace(/ *\n */g, "\n").trim()
+  const heads = [
+    "Confirm your seat:",
+    "Absolutely, I'm in:",
+    "Next time, maybe:",
+    "This is your location:",
+    "You registered for",
+    "Join Discord",
+    "Exclusive offer",
+    "Hackpack:",
+    "Prizes",
+    "Start here",
+    "Example agents:",
+    "Docs:",
+    "Team:",
+    "Regards,",
+    "Thank you",
+  ]
+  for (const head of heads) {
+    const pattern = head.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    next = next.replace(new RegExp(`\\s+(${pattern})`, "ig"), "\n\n$1")
+  }
+  next = next.replace(/\s+(Exclusive offer)\s+/i, "\n\n$1\n")
+  next = next.replace(/\s+(Use code:)/i, "\n$1")
+  next = next.replace(/\s+(Venue:)/i, "\n$1")
+  next = next.replace(/\s+(For any queries)\b/gi, "\n\n$1")
+  for (const pattern of [
+    "National winners",
+    "First winner",
+    "First Runner-up",
+    "2nd Runner-up",
+    "3rd Runner-up",
+    "Best [A-Za-z0-9][A-Za-z0-9'’/-]*(?:\\s+[A-Za-z0-9][A-Za-z0-9'’/-]*){0,4}",
+  ]) {
+    next = next.replace(new RegExp(`\\s+(${pattern})\\s*:`, "gi"), "\n$1:")
+  }
+  return next.replace(/\n{3,}/g, "\n\n").trim()
+}
+
+function stripEmbeddedLocation(text: string) {
+  return text
+    .split("\n")
+    .filter((line) => {
+      const value = line.trim()
+      if (!value) return true
+      if (/this is your location/i.test(value)) return false
+      if (/^you registered for\b/i.test(value)) return false
+      if (/^https?:\/\/(?:maps\.app\.goo\.gl|www\.google\.com\/maps)\//i.test(value)) return false
+      if (/^building photo\b/i.test(value)) return false
+      return true
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim()
+}
+
+function isSignoff(line: string) {
+  return /^(for any queries|fetch-a-thon\b|fetch\.ai innovation lab|regards,?|thank you)\b/i.test(line.trim())
+}
+
+function composedRows(body: string) {
+  const text = stripEmbeddedLocation(restoreMailBreaks(editorText(body)))
+  return text
+    .split(/\n{2,}/)
+    .map((part) => part.split("\n").filter((line) => !isSignoff(line)).join("\n").trim())
+    .filter(Boolean)
+    .map((part) => composeBlock(part))
+    .filter(Boolean)
+    .join(sectionGap())
 }
 
 export function composeMessageHtml(
@@ -949,22 +1068,14 @@ export function composeMessageHtml(
   place?: ComposePlace,
 ) {
   const trimmed = body.trim()
-  const location = `${locationRow(trimmed, place)}${qrRow(place)}`
-  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
+  const rich = /<(img|table|iframe|h1|h2)\b/i.test(trimmed)
+  const cards = `<tr><td class="pad" style="padding:4px 20px 8px;">${locationCardInner(place)}${qrCardInner(place)}</td></tr>`
+  if (rich) {
     const inner = `<tr><td class="pad" style="padding:28px 28px 8px;font-family:${FONT};color:#1a1a1a;font-size:16px;line-height:1.55;">${sanitizeMailHtml(trimmed)}</td></tr>`
-    return wrapEmail(subject, `${inner}${location}${mailFooter()}`)
+    return wrapEmail(subject, `${inner}${cards}${mailFooter()}`)
   }
-  if (/shortlisted for fetch-a-thon|confirm your rsvp|absolutely, i'm in|you are selected/i.test(trimmed)) {
-    return rsvpFromCompose(subject, trimmed)
-  }
-  const rows = body
-    .split(/\n{2,}/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => composeBlock(part))
-    .filter(Boolean)
-    .join(sectionGap())
-  return wrapEmail(subject, `${brandedRows(rows)}${location}${mailFooter()}`)
+  const rows = composedRows(trimmed)
+  return wrapEmail(subject, `${brandedRows(rows)}${cards}${mailFooter()}`)
 }
 
 export function composeMessageText(
@@ -979,11 +1090,17 @@ export function composeMessageText(
     .replace(/&amp;/g, "&")
     .trim()
   const extra: string[] = []
-  if (!locationAlreadyIn(text, place) && place?.label) {
-    const note = place.note && place.note !== "This is your location." ? `\n${place.note}` : ""
-    const map = place.mapUrl ? `\n${place.mapUrl}` : ""
-    const photo = place.imageUrl ? `\nBuilding photo: ${place.imageUrl}` : ""
-    extra.push(`Your location: ${place.label}${note}${map}${photo}`)
+  if (place?.label) {
+    const lines = [
+      `Your location: ${place.label}`,
+      place.address || "",
+      place.metroNote || "",
+      place.imageCaption || "",
+      !place.address && place.note && place.note !== "This is your location." ? place.note : "",
+      place.mapUrl || "",
+      place.imageUrl ? `Building photo: ${place.imageUrl}` : "",
+    ].filter(Boolean)
+    extra.push(lines.join("\n"))
   }
   if (place?.qr) {
     extra.push(

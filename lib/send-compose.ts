@@ -21,6 +21,9 @@ export type ComposeAudience =
 type Recipient = MailFields & {
   id: string
   note: string
+  address: string
+  metroNote: string
+  imageCaption: string
   imageUrl: string
   attachQr: boolean
   qrToken: string
@@ -42,6 +45,9 @@ function personFrom(row: Registration, pack: "rsvp" | "confirm" | "none" = "none
     map: place.mapUrl || "",
     confirm_url: rsvpConfirmUrl(key),
     note: place.note,
+    address: place.address || "",
+    metroNote: place.metroNote || "",
+    imageCaption: place.imageCaption || "",
     imageUrl: place.imageUrl || "",
     attachQr: pack === "confirm",
     qrToken: token,
@@ -54,6 +60,9 @@ function placeFor(person: Recipient, qr: ComposePlace["qr"]): ComposePlace {
     label: person.venue,
     mapUrl: person.map || null,
     note: person.note,
+    address: person.address,
+    metroNote: person.metroNote,
+    imageCaption: person.imageCaption,
     imageUrl: person.imageUrl || null,
     qr,
     teamId: person.team,
@@ -104,6 +113,9 @@ export async function resolveRecipients(audience: ComposeAudience) {
           map: "",
           confirm_url: "",
           note: "",
+          address: "",
+          metroNote: "",
+          imageCaption: "",
           imageUrl: "",
           attachQr: false,
           qrToken: "",
