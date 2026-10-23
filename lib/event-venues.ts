@@ -7,9 +7,15 @@ export const DISCORD_NOTE =
   "Please join Discord and ask if you have any query in the Fetch-A-Thon 3.0 channel."
 export const EVENT_DATE = "24 October 2026"
 
+const GURUGRAM_MAP = "https://maps.app.goo.gl/NvugXhj6bKTMFKUh6"
+const GURUGRAM_IMAGE =
+  "https://res.cloudinary.com/doesqlfyi/image/upload/fetchathon3/buildfin-udyog-vihar.jpg"
+const GURUGRAM_NOTE =
+  "Location updated. 388, Udyog Vihar Phase 3 Rd, Phase II, Udyog Vihar, Sector 20, Gurugram, Haryana 122016. Nearest metro: Rapid Metro – Moulsari Avenue and Rapid Metro – Cyber City. The building in the photo is Buildfin."
+
 const MAPS = {
   roorkee: "https://maps.app.goo.gl/3ynpRgj136u87WBv6",
-  gurugram: "https://maps.app.goo.gl/jp5cWD2jbc7hb4Yx7",
+  gurugram: GURUGRAM_MAP,
   jaipur: "https://maps.app.goo.gl/KzG4VgurLzQthoSD9",
   mandi: "https://maps.app.goo.gl/wA3ae8j95hAynnb76",
   bengaluru:
@@ -21,6 +27,7 @@ export type MailVenue = {
   label: string
   mapUrl: string | null
   note: string
+  imageUrl?: string | null
 }
 
 export const PRIZES: Array<[string, string, string]> = [
@@ -62,7 +69,8 @@ export function mailVenue(city: string, metro = ""): MailVenue {
       key: "gurugram",
       label: "Masters' Union Gurugram",
       mapUrl: MAPS.gurugram,
-      note: "This is your location.",
+      note: GURUGRAM_NOTE,
+      imageUrl: GURUGRAM_IMAGE,
     }
   }
   if (text.includes("bengaluru") || text.includes("bangalore")) {

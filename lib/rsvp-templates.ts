@@ -35,6 +35,7 @@ export function rsvpPlainMessage(input: {
     "",
     place,
     input.venue.note === "This is your location." ? "" : input.venue.note,
+    input.venue.imageUrl ? `Building photo (Buildfin): ${input.venue.imageUrl}` : "",
     "",
     DISCORD_NOTE,
     input.discordUrl,

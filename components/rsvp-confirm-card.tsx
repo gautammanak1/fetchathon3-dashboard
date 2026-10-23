@@ -17,6 +17,7 @@ export function RsvpConfirmCard({
   teamId,
   venue,
   note,
+  imageUrl,
   members,
   already,
   later = false,
@@ -25,6 +26,7 @@ export function RsvpConfirmCard({
   teamId: string
   venue: string
   note: string
+  imageUrl?: string | null
   members: Array<{ name: string; role: string }>
   already: boolean
   later?: boolean
@@ -71,6 +73,13 @@ export function RsvpConfirmCard({
           <p className="text-sm text-muted-foreground">Venue</p>
           <p className="font-medium">{venue}</p>
           {note ? <p className="mt-1 text-sm text-muted-foreground">{note}</p> : null}
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt="Buildfin building at the updated Gurugram location"
+              className="mt-3 w-full rounded-lg"
+            />
+          ) : null}
         </div>
         <ul className="grid gap-2">
           {members.map((member) => (

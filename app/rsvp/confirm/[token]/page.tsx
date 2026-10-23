@@ -24,6 +24,7 @@ export default async function Page({
           teamId={team.members[0]?.team_id_display || team.key}
           venue={venue.label}
           note={venue.note}
+          imageUrl={venue.imageUrl}
           later={later === "1"}
           already={team.members.every((member) => member.rsvp_status === "confirmed")}
           members={team.members.map((member) => ({

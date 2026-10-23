@@ -527,11 +527,14 @@ function rsvpShell(greeting: string, confirmUrl: string, message: string) {
 function eventDetailRows(row: Registration, members: Registration[]) {
   const venue = mailVenue(row.city, row.metro)
   const note = venue.note && venue.note !== "This is your location." ? venue.note : ""
+  const photo = venue.imageUrl
+    ? `<br><img src="${escapeHtml(venue.imageUrl)}" alt="Buildfin building at the updated Gurugram location" width="520" style="display:block;width:100%;max-width:520px;height:auto;margin-top:10px;border:0;border-radius:8px;">`
+    : ""
   const people = members
     .map((member) => [clean(member.name), clean(member.role)].filter(Boolean).join(" · "))
     .filter(Boolean)
   const rows: Array<[string, string]> = [
-    ["Location", `${escapeHtml(venue.label)}${note ? `<br><span style="color:#6b6b6b;">${escapeHtml(note)}</span>` : ""}`],
+    ["Location", `${escapeHtml(venue.label)}${note ? `<br><span style="color:#6b6b6b;">${escapeHtml(note)}</span>` : ""}${photo}`],
   ]
   if (venue.mapUrl) rows.push(["Map", textLink(venue.mapUrl, venue.mapUrl)])
   rows.push(
@@ -663,7 +666,9 @@ export function qrText(input: {
     `Saturday, ${EVENT_DATE}`,
     `Team ID: ${input.teamIdDisplay || clean(input.row.team_id_display) || "Solo"}`,
     `Location: ${venue.label}`,
+    venue.note && venue.note !== "This is your location." ? venue.note : "",
     venue.mapUrl || "",
+    venue.imageUrl ? `Building photo (Buildfin): ${venue.imageUrl}` : "",
     "",
     ...agendaText(inPerson),
     "There is a gaming activity on the day as well. Join in between builds.",

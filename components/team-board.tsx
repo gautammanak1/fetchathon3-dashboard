@@ -712,6 +712,16 @@ function TeamSheet({
                 {venue.mapUrl ? null : (
                   <Fact label="Map" value={venue.note || "No map for this location"} />
                 )}
+                {venue.note && venue.note !== "This is your location." ? (
+                  <p className="text-sm text-muted-foreground sm:col-span-2">{venue.note}</p>
+                ) : null}
+                {venue.imageUrl ? (
+                  <img
+                    src={venue.imageUrl}
+                    alt="Buildfin building at the updated Gurugram location"
+                    className="w-full rounded-lg sm:col-span-2"
+                  />
+                ) : null}
                 {venue.mapUrl ? (
                   <a href={venue.mapUrl} target="_blank" rel="noreferrer" className="text-sm underline">
                     Open the location map
