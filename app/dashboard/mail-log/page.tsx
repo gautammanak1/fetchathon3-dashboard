@@ -2,9 +2,11 @@ import { redirect } from "next/navigation"
 
 import { MailLogPage } from "@/components/mail-log"
 import { getAdminSession } from "@/lib/auth"
+import { loadDashboardRoster } from "@/lib/roster"
 
 export default async function Page() {
   const admin = await getAdminSession()
   if (!admin) redirect("/dashboard")
-  return <MailLogPage />
+  const initial = await loadDashboardRoster()
+  return <MailLogPage initial={initial} />
 }

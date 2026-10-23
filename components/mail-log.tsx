@@ -11,7 +11,7 @@ import { useRoster } from "@/hooks/use-roster"
 import { downloadCsv, venueCsvName } from "@/lib/csv"
 import { mailVenue } from "@/lib/event-venues"
 import { cn } from "cn"
-import type { Registration } from "@/lib/types"
+import type { Registration, RosterPayload } from "@/lib/types"
 
 function mailLogCsv(rows: Registration[]) {
   return rows.map((row) => ({
@@ -120,8 +120,8 @@ function Chip({
   )
 }
 
-export function MailLogPage() {
-  const { data, loading, error } = useRoster()
+export function MailLogPage({ initial }: { initial?: RosterPayload | null }) {
+  const { data, loading, error } = useRoster(initial)
   const [filters, setFilters] = React.useState(EMPTY)
   const [exportVenue, setExportVenue] = React.useState("")
   const rows = data?.registrations ?? []

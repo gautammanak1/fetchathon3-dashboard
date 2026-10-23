@@ -35,6 +35,7 @@ import { composeMessageHtml } from "@/lib/email-templates"
 import { mailVenue } from "@/lib/event-venues"
 import type { MailTemplate } from "@/lib/mail-template-store"
 import { useRoster } from "@/hooks/use-roster"
+import type { RosterPayload } from "@/lib/types"
 
 type Audience = "roster" | "venue" | "confirmed" | "custom"
 type Kind = "rsvp" | "reject" | "custom"
@@ -49,8 +50,8 @@ const SAMPLE = {
   confirm_url: "https://example.com/rsvp/confirm/sample",
 }
 
-export function MailComposer() {
-  const { data, loading } = useRoster()
+export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
+  const { data, loading } = useRoster(initial)
   const [kind, setKind] = React.useState<Kind>("rsvp")
   const [templateName, setTemplateName] = React.useState("")
   const [templateId, setTemplateId] = React.useState<string | null>(null)

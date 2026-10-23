@@ -1,5 +1,7 @@
 import { OverviewPage } from "@/components/dashboard-pages"
+import { loadDashboardRoster } from "@/lib/roster"
 
-export default function Page() {
-  return <OverviewPage />
+export default async function Page() {
+  const initial = await loadDashboardRoster()
+  return <OverviewPage initial={initial} />
 }

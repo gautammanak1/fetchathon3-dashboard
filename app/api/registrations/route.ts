@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
 
-import { loadRoster } from "@/lib/roster"
+import { loadRosterFast } from "@/lib/roster"
 
 export const dynamic = "force-dynamic"
 
 export async function GET() {
   try {
-    const roster = await loadRoster()
+    const roster = await loadRosterFast()
     return NextResponse.json(roster)
   } catch (error) {
     const message =
