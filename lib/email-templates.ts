@@ -1062,6 +1062,31 @@ function composedRows(body: string) {
     .join(sectionGap())
 }
 
+const UPDATE_TEXT = `margin:0 0 14px;font-family:${FONT};font-size:16px;line-height:1.6;font-weight:400;color:#1a1a1a;`
+
+function styleEditorHtml(html: string) {
+  let next = sanitizeMailHtml(html)
+    .replace(/<\/?(?:img|iframe|object|embed|video|svg|form|input|button|style|link|meta)\b[^>]*>/gi, "")
+  next = next.replace(/<p\b[^>]*>/gi, `<p style="${UPDATE_TEXT}">`)
+  next = next.replace(/<(strong|b)\b[^>]*>/gi, `<$1 style="font-weight:700;">`)
+  next = next.replace(
+    /<ul\b[^>]*>/gi,
+    `<ul style="margin:0 0 14px;padding:0 0 0 22px;font-family:${FONT};font-size:16px;line-height:1.6;color:#1a1a1a;">`,
+  )
+  next = next.replace(
+    /<ol\b[^>]*>/gi,
+    `<ol style="margin:0 0 14px;padding:0 0 0 22px;font-family:${FONT};font-size:16px;line-height:1.6;color:#1a1a1a;">`,
+  )
+  next = next.replace(/<li\b[^>]*>/gi, `<li style="margin:0 0 6px;">`)
+  next = next.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (_match, attrs: string, label: string) => {
+    const href = String(attrs).match(/href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i)
+    const url = href?.[1] || href?.[2] || href?.[3] || ""
+    if (!/^https?:\/\//i.test(url)) return label
+    return `<a href="${escapeHtml(url)}" style="color:#2457d6;text-decoration:underline;word-break:break-word;">${label}</a>`
+  })
+  return next
+}
+
 function lineWithLinks(line: string) {
   const parts = line.split(/(https?:\/\/[^\s]+)/g)
   return parts
@@ -1075,7 +1100,12 @@ function lineWithLinks(line: string) {
 }
 
 export function composeMessageHtml(subject: string, body: string) {
-  const blocks = editorText(body)
+  const trimmed = body.trim()
+  if (/<[a-z][\s\S]*>/i.test(trimmed)) {
+    const inner = `<tr><td class="pad" style="padding:20px 24px 8px;">${styleEditorHtml(trimmed)}</td></tr>`
+    return wrapEmail(subject, `${inner}${mailFooter()}`)
+  }
+  const blocks = editorText(trimmed)
     .split(/\n{2,}/)
     .map((part) => part.trim())
     .filter(Boolean)
@@ -1086,10 +1116,13 @@ export function composeMessageHtml(subject: string, body: string) {
         .map((line) => lineWithLinks(line.trim()))
         .filter(Boolean)
         .join("<br>")
-      return `<tr><td style="padding:0 0 14px;font-family:${FONT};font-size:16px;line-height:1.6;font-weight:400;color:#2c2750;">${html}</td></tr>`
+      return `<p style="${UPDATE_TEXT}">${html}</p>`
     })
     .join("")
-  return wrapEmail(subject, `${brandedRows(rows)}${mailFooter()}`)
+  return wrapEmail(
+    subject,
+    `<tr><td class="pad" style="padding:20px 24px 8px;">${rows}</td></tr>${mailFooter()}`,
+  )
 }
 
 export function composeMessageText(body: string) {
