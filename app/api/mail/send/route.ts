@@ -14,7 +14,7 @@ import { teamKey } from "@/lib/team-qr-store"
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
-async function testRecipient(email: string, pack: "rsvp" | "confirm") {
+async function testRecipient(email: string) {
   const blank = {
     id: "",
     email,
@@ -53,7 +53,7 @@ async function testRecipient(email: string, pack: "rsvp" | "confirm") {
         metroNote: place.metroNote || "",
         imageCaption: place.imageCaption || "",
         imageUrl: place.imageUrl || "",
-        attachQr: pack === "confirm" && row.qr_status === "sent",
+        attachQr: false,
         qrToken: row.qr_token || deriveTeamQrToken(key),
         teamKey: key,
       }
@@ -139,9 +139,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const pack = body?.pack === "confirm" ? "confirm" : "rsvp"
     const recipients = body?.test
-      ? [await testRecipient(session.email, pack)]
+      ? [await testRecipient(session.email)]
       : await resolveRecipients(audience!)
     if (recipients.length === 0) {
       return NextResponse.json({ error: "No valid email addresses to send to" }, { status: 400 })

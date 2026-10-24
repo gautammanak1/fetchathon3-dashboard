@@ -377,7 +377,7 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
                 <MailEditor value={body} onChange={setBody} />
                 <p className="text-sm text-muted-foreground">
                   Use {"{{name}}"}, {"{{team}}"}, {"{{venue}}"}, {"{{map}}"}, and {"{{confirm_url}}"}.
-                  RSVP-sent people also get their location, map, and the location note. Confirm-mailed people get that plus the same team QR from the confirm mail.
+                  This note is only the message. It does not add a location photo, map, or team QR.
                 </p>
               </div>
             </>
@@ -409,8 +409,8 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
               </div>
               <p className="text-sm text-muted-foreground">
                 {pack === "confirm"
-                  ? "Click people who already received the confirm mail. The note includes their location and the same team QR."
-                  : "Click people whose RSVP was sent. The note includes the location, map, and location update for the venue they chose."}
+                  ? "Click people who already received the confirm mail. They only receive this message."
+                  : "Click people whose RSVP was sent. They only receive this message."}
               </p>
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -550,17 +550,7 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
                 key={preview.body}
                 title="Email preview"
                 sandbox=""
-                srcDoc={composeMessageHtml(preview.subject, preview.body, {
-                  label: previewPlace.label,
-                  mapUrl: previewPlace.mapUrl,
-                  note: previewPlace.note,
-                  address: previewPlace.address,
-                  metroNote: previewPlace.metroNote,
-                  imageCaption: previewPlace.imageCaption,
-                  imageUrl: previewPlace.imageUrl,
-                  qr: pack === "confirm" ? "preview" : false,
-                  teamId: previewPerson?.team_id_display || "",
-                })}
+                srcDoc={composeMessageHtml(preview.subject, preview.body)}
                 className="h-[640px] w-full rounded-xl border bg-[#efeafc]"
               />
             ) : (
@@ -593,7 +583,7 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
                       ? `This sends the location RSVP to ${audienceLabel}. Anyone who already has an RSVP mail is left out.`
                       : kind === "reject"
                         ? `This sends the Fetch-A-Thon 4.0 note to ${audienceLabel} who have not received a reject mail yet.`
-                        : `This sends “${subject.trim() || "this message"}” to ${audienceLabel}. ${pack === "confirm" ? "Each mail includes their location and the same team QR." : "Each mail includes their location, map, and location note."} It does not change RSVP or confirm status.`}
+                        : `This sends “${subject.trim() || "this message"}” to ${audienceLabel}. Only the message is sent. It does not change RSVP or confirm status.`}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

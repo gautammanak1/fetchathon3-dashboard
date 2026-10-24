@@ -1,12 +1,12 @@
 import { fillTemplate, parseEmailList, readableName, type MailFields } from "@/lib/compose-mail"
-import { composeMessageHtml, composeMessageText, type ComposePlace } from "@/lib/email-templates"
+import { composeMessageHtml, composeMessageText } from "@/lib/email-templates"
 import { mailVenue } from "@/lib/event-venues"
 import { formatVenue } from "@/lib/fields"
 import { deriveTeamQrToken } from "@/lib/qr"
 import { rsvpConfirmUrl } from "@/lib/rsvp-confirm"
 import { loadRosterFast } from "@/lib/roster"
 import { createSmtpTransport, EMAIL_RE, sendSmtpMail, sleep } from "@/lib/smtp"
-import { teamKey, teamQrImage, type TeamQrRecord } from "@/lib/team-qr-store"
+import { teamKey } from "@/lib/team-qr-store"
 import type { Registration } from "@/lib/types"
 
 const SEND_GAP_MS = 250
@@ -49,34 +49,9 @@ function personFrom(row: Registration, pack: "rsvp" | "confirm" | "none" = "none
     metroNote: place.metroNote || "",
     imageCaption: place.imageCaption || "",
     imageUrl: place.imageUrl || "",
-    attachQr: pack === "confirm",
+    attachQr: false,
     qrToken: token,
     teamKey: key,
-  }
-}
-
-function placeFor(person: Recipient, qr: ComposePlace["qr"]): ComposePlace {
-  return {
-    label: person.venue,
-    mapUrl: person.map || null,
-    note: person.note,
-    address: person.address,
-    metroNote: person.metroNote,
-    imageCaption: person.imageCaption,
-    imageUrl: person.imageUrl || null,
-    qr,
-    teamId: person.team,
-  }
-}
-
-function qrRecord(person: Recipient): TeamQrRecord {
-  return {
-    team_key: person.teamKey,
-    team_id_display: person.team || person.teamKey,
-    venue: person.venue,
-    token: person.qrToken,
-    generated_at: new Date().toISOString(),
-    sent_at: null,
   }
 }
 
@@ -152,37 +127,18 @@ export async function sendComposedMail(input: {
     failed: [] as Array<{ email: string; error: string }>,
   }
   const transporter = createSmtpTransport()
-  const qrCache = new Map<string, Buffer>()
   try {
     for (const person of input.recipients) {
       const subject = fillTemplate(input.subject, person).trim()
       const body = fillTemplate(input.body, person).trim()
-      const place = placeFor(person, person.attachQr ? "attach" : false)
-      let attachments: Array<{ filename: string; content: Buffer; cid: string; contentType: string }> | undefined
-      if (person.attachQr) {
-        let content = qrCache.get(person.qrToken)
-        if (!content) {
-          content = (await teamQrImage(qrRecord(person))).buffer
-          qrCache.set(person.qrToken, content)
-        }
-        attachments = [
-          {
-            filename: "team-qr.png",
-            content,
-            cid: "teamqr",
-            contentType: "image/png",
-          },
-        ]
-      }
       try {
         await sendSmtpMail(
           {
             to: person.email,
             toName: person.name,
             subject,
-            text: composeMessageText(body, place),
-            html: composeMessageHtml(subject, body, place),
-            attachments,
+            text: composeMessageText(body),
+            html: composeMessageHtml(subject, body),
           },
           transporter,
         )

@@ -1062,50 +1062,36 @@ function composedRows(body: string) {
     .join(sectionGap())
 }
 
-export function composeMessageHtml(
-  subject: string,
-  body: string,
-  place?: ComposePlace,
-) {
-  const trimmed = body.trim()
-  const rich = /<(img|table|iframe|h1|h2)\b/i.test(trimmed)
-  const cards = `<tr><td class="pad" style="padding:4px 20px 8px;">${locationCardInner(place)}${qrCardInner(place)}</td></tr>`
-  if (rich) {
-    const inner = `<tr><td class="pad" style="padding:28px 28px 8px;font-family:${FONT};color:#1a1a1a;font-size:16px;line-height:1.55;">${sanitizeMailHtml(trimmed)}</td></tr>`
-    return wrapEmail(subject, `${inner}${cards}${mailFooter()}`)
-  }
-  const rows = composedRows(trimmed)
-  return wrapEmail(subject, `${brandedRows(rows)}${cards}${mailFooter()}`)
+function lineWithLinks(line: string) {
+  const parts = line.split(/(https?:\/\/[^\s]+)/g)
+  return parts
+    .map((part) => {
+      if (!/^https?:\/\//i.test(part)) return escapeHtml(part)
+      const href = part.replace(/[),.;]+$/, "")
+      const tail = part.slice(href.length)
+      return `${textLink(href, href)}${escapeHtml(tail)}`
+    })
+    .join("")
 }
 
-export function composeMessageText(
-  body: string,
-  place?: ComposePlace,
-) {
-  const text = body
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/p>/gi, "\n\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .trim()
-  const extra: string[] = []
-  if (place?.label) {
-    const lines = [
-      `Your location: ${place.label}`,
-      place.address || "",
-      place.metroNote || "",
-      place.imageCaption || "",
-      !place.address && place.note && place.note !== "This is your location." ? place.note : "",
-      place.mapUrl || "",
-      place.imageUrl ? `Building photo: ${place.imageUrl}` : "",
-    ].filter(Boolean)
-    extra.push(lines.join("\n"))
-  }
-  if (place?.qr) {
-    extra.push(
-      `Your team QR${place.teamId ? ` (${place.teamId})` : ""} is attached. No entry without this QR. One QR is for the whole team.`,
-    )
-  }
-  return [text, ...extra].filter(Boolean).join("\n\n").trim()
+export function composeMessageHtml(subject: string, body: string) {
+  const blocks = editorText(body)
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+  const rows = blocks
+    .map((block) => {
+      const html = block
+        .split("\n")
+        .map((line) => lineWithLinks(line.trim()))
+        .filter(Boolean)
+        .join("<br>")
+      return `<tr><td style="padding:0 0 14px;font-family:${FONT};font-size:16px;line-height:1.6;font-weight:400;color:#2c2750;">${html}</td></tr>`
+    })
+    .join("")
+  return wrapEmail(subject, `${brandedRows(rows)}${mailFooter()}`)
+}
+
+export function composeMessageText(body: string) {
+  return editorText(body)
 }
