@@ -89,7 +89,6 @@ function enqueue<T>(task: () => Promise<T>) {
 }
 
 async function loadStore() {
-  if (memory) return memory
   let remoteOk = false
   if (db()) {
     try {
@@ -101,7 +100,10 @@ async function loadStore() {
       }
     } catch (error) {
       console.error("check-in supabase read failed", error)
+      if (memory) return memory
     }
+  } else if (memory) {
+    return memory
   }
   const file = await readJsonFile<Record<string, unknown>>(STORE_NAME, {})
   const fromFile: Store = {}

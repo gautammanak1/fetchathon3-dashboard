@@ -1,6 +1,7 @@
 import { getCheckInMap, markCheckedIn, removeCheckIn, type CheckInRecord } from "@/lib/checkin-store"
+import { mailVenue } from "@/lib/event-venues"
 import { isPassToken } from "@/lib/pass-url"
-import { loadRoster } from "@/lib/roster"
+import { loadRoster, loadRosterFast } from "@/lib/roster"
 import { findTeamQrByToken, matchDerivedTeamQr, teamKey } from "@/lib/team-qr-store"
 import {
   ensureNotionCheckInField,
@@ -139,15 +140,66 @@ export async function undoCheckIn(registrationId: string) {
   }
 }
 
+export type DoorPerson = {
+  id: string
+  name: string
+  email: string
+  role: string
+  organization: string
+  team: string
+  venue: string
+  checked_in_at: string | null
+}
+
 export async function checkInSummary() {
-  const map = await getCheckInMap()
+  const [map, roster] = await Promise.all([getCheckInMap(), loadRosterFast()])
   const recent = Object.values(map).sort((a, b) =>
     a.checked_in_at < b.checked_in_at ? 1 : -1,
   )
   const teams = new Set(recent.map((item) => item.team_key).filter(Boolean))
+  const expected = new Map<string, DoorPerson>()
+  for (const row of roster.registrations) {
+    const record = map[row.id]
+    if (row.qr_status !== "sent" && !record) continue
+    expected.set(row.id, {
+      id: row.id,
+      name: row.name || "Untitled",
+      email: row.email || "",
+      role: row.role || "Member",
+      organization: row.organization || "",
+      team: row.team_id_display || row.team_id || record?.team_id_display || "",
+      venue: mailVenue(row.city, row.metro).label,
+      checked_in_at: record?.checked_in_at || null,
+    })
+  }
+  for (const record of recent) {
+    if (expected.has(record.registration_id)) continue
+    expected.set(record.registration_id, {
+      id: record.registration_id,
+      name: record.name,
+      email: record.email,
+      role: record.role,
+      organization: record.organization,
+      team: record.team_id_display || record.team_key,
+      venue: record.venue || "Unknown",
+      checked_in_at: record.checked_in_at,
+    })
+  }
+  const people = [...expected.values()].sort((a, b) => {
+    const aAt = a.checked_in_at || ""
+    const bAt = b.checked_in_at || ""
+    if (aAt && bAt) return aAt < bAt ? 1 : -1
+    if (aAt || bAt) return aAt ? -1 : 1
+    return a.name.localeCompare(b.name)
+  })
+  const sentRows = roster.registrations.filter((row) => row.qr_status === "sent")
   return {
     people: recent.length,
     teams: teams.size,
     recent: recent.slice(0, 40),
+    expected: people,
+    sent: sentRows.length,
+    arrived: recent.length,
+    waiting: sentRows.filter((row) => !map[row.id]).length,
   }
 }

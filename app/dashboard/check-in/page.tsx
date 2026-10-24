@@ -9,7 +9,7 @@ export default async function Page() {
   if (!admin) redirect("/dashboard")
   return (
     <DashboardShell title="Check-in">
-      <CheckInScanner />
+      <CheckInScanner showRoster />
     </DashboardShell>
   )
 }
