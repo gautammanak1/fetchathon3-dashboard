@@ -1,3 +1,5 @@
+import { connection } from "next/server"
+
 import {
   VENUE_OPTIONS,
   deriveMetro,
@@ -357,6 +359,7 @@ export async function loadRosterFast() {
 }
 
 export async function loadDashboardRoster(): Promise<RosterPayload> {
+  await connection()
   const stored = await loadStoredRoster()
   if (stored) return stored
   return toPayload("notion", true, {}, [])

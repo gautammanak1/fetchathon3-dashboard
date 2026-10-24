@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server"
 
-import { loadRosterFast } from "@/lib/roster"
+import { loadRoster } from "@/lib/roster"
 
 export const dynamic = "force-dynamic"
+export const maxDuration = 300
 
 export async function GET() {
   try {
-    const roster = await loadRosterFast()
+    const roster = await loadRoster()
     return NextResponse.json(roster)
   } catch (error) {
     const message =

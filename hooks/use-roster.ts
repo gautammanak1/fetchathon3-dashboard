@@ -121,9 +121,10 @@ export function useRoster(initial?: RosterPayload | null) {
   const [data, setData] = React.useState<RosterPayload | null>(initial ?? null)
   const [loading, setLoading] = React.useState(!initial)
   const [error, setError] = React.useState<string | null>(null)
+  const seeded = React.useRef(Boolean(initial))
 
   const refresh = React.useCallback(async () => {
-    setLoading(true)
+    if (!seeded.current) setLoading(true)
     setError(null)
     try {
       const response = await fetch("/api/registrations", { cache: "no-store" })
@@ -131,6 +132,7 @@ export function useRoster(initial?: RosterPayload | null) {
       if (!response.ok) {
         throw new Error(payload.error || "Could not load Notion roster")
       }
+      seeded.current = true
       setData(payload)
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not load roster"
@@ -166,9 +168,8 @@ export function useRoster(initial?: RosterPayload | null) {
   }, [patchPeople])
 
   React.useEffect(() => {
-    if (initial) return
     void refresh()
-  }, [initial, refresh])
+  }, [refresh])
 
   React.useEffect(() => {
     const stored = window.sessionStorage.getItem(QR_JOB_KEY)
