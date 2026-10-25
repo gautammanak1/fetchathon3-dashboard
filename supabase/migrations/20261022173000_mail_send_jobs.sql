@@ -10,6 +10,8 @@ create table if not exists public.mail_send_jobs (
   attempt integer not null default 0,
   status text not null default 'running',
   note text not null default '',
+  subject text not null default '',
+  message text not null default '',
   total integer not null default 0,
   locked_at timestamptz,
   created_at timestamptz not null default now(),

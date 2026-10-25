@@ -1,0 +1,122 @@
+Project Name,Which framework did you use to build your agents,Provide a brief description of the real-world proble,Agentverse Agent Proﬁle URL,Public GitHub Repository URL,Mandatory Requirements Checklist,demo video URL,Rate your experience building with the ecosystem,Team ID
+CivicNav,uAgents,The government schemes that are a mess in the c,,https://github.com/aarvi-jain/CivicN,"Agent registered on Agentverse, Public G",,4,fetchathon3.0-1740 
+,,The Problem:,,,,,,
+,,"Accessing reliable, comprehensive intelligence ab",,,,,,
+India Intel Agent (@india,LangGraph,,https://agentverse.ai/agents/details/agent1qv4pkusy4a4,https://github.com/Garvit-7-Agarwa,"Agent registered on Agentverse, Agent C",https://drive.google.com,4,fetchathon3.0-9409 
+,,The Solution:,,,,,,
+,,"India Intel Agent provides an autonomous, multi-d",,,,,,
+SCHOLAR BOT,uAgents,Autonomous Multi-Agent Scholarship Finder & An,https://agentverse.ai/agents/details/agent1qd4vypqxytx,https://github.com/THE-NAVVV/Sc,"Agent registered on Agentverse, Agent C", https://www.youtube.co,5,fetchathon3.0-9110
+WireCheck,uAgents,Small businesses often pay unfamiliar overseas s,https://agentverse.ai/agents/details/agent1q2mm690jur,https://github.com/ambxy/WireChe,"Agent registered on Agentverse, Agent C",,4,fetchathon3.0-6582 
+MandiMitra,uAgents,Provides live mandi price information from source,https://agentverse.ai/agents/details/agent1q0rsn3us4d9,https://github.com/riday-kumar/kri,"Agent registered on Agentverse, Public G",,5,fetchathon3.0-3188
+Airlock,uAgents,Households lose money to forgotten bills and to s,https://agentverse.ai/agents/details/agent1qvlcnk524vn,https://github.com/Cryptic-R/Airloc,"Agent registered on Agentverse, Agent C",,4,fetchathon3.0-1295
+ChildSafeAI,uAgents,ChildSafe AI is an agentic child-safety assistance ,https://agentverse.ai/agents/details/agent1qt8s9qkswzj,https://github.com/Sanyam1804/C,"Agent registered on Agentverse, Agent C",,3,fetchathon3.0-8440
+Dispute Resolution Agen,uAgents,"We eliminated the slow, 3-to-5-day manual dispute",https://agentverse.ai/agents/details/agent1qffejkkjk5z8,https://github.com/hrithik-codes/A,"Agent registered on Agentverse, Agent C",,4,fetchathon3.0-7436
+Sentinel-SRE,uAgents,"When a service goes down, engineers must manu",https://agentverse.ai/agents/details/agent1qde7yjngsf9,https://github.com/LuckyTheGre8/,"Agent registered on Agentverse, Agent C",https://share.gemini.goo,5,fetchathon3.0-1096
+,,Cloud teams often struggle to identify why their cl,,,,,,
+RAGrets Cloud Bill spike,Plain Python,,agent1qgymjwwvmr8n8hfgsv8k5p54dpyruu60kugeym33,https://github.com/kushagra-1008/,Public GitHub repository provided,https://drive.google.com,5,fetchathon3.0-4059
+FinPilot,uAgents,FinancePilot-AI addresses the problem of fragmen,https://agentverse.ai/agents/details/agent1q0cxn87gkz0,https://github.com/rajharsh13564/,"Agent registered on Agentverse, Agent C",,5,fetchathon3.0-5556
+,,The problem we're uniquely targeting is that most ,,,,,,
+RupeePilot,uAgents,,https://agentverse.ai/agents/details/agent1qtcca88gzxk,https://github.com/ritesh123malik/,"Agent registered on Agentverse, Agent C",https://youtu.be/Pg0U8y,4,fetchathon3.0-8005
+,,We're not claiming that budgeting or ﬁnancial fore,,,,,,
+,,CampusLife is an AI-powered personal growth age,,,,,,
+,,Its core feature is the Recovery Engine: when plan,,,,,,
+GYST!,Plain Python,,,https://github.com/pulkitchhabra08,"Agent Chat Protocol implemented, Publi",,5,fetchathon3.0-5996
+,,The long-term vision is to go beyond a chatbot or ,,,,,,
+,,In one line: An AI agent that doesn't just help you p,,,,,,
+FIA,Plain Python,Football online exchange ,https://agentverse.ai/agents/details/agent1qdj5g7yy2kr,https://github.com/SunOnFire543/,"Agent registered on Agentverse, Agent C",,3,fetchathon3.0-2254 
+,,InternAssist | The One-Click Application Agent | Fe,,,,,,
+,,"Excited to be part of *InternAssist*, an AI-powered",,,,,,
+,,InternAssist aims to simplify the internship applic,,,,,,
+,,*Key Features:*,,,,,,
+,,• *Automated Job Extraction:* Uses Jina Reader A,,,,,,
+InternAssist,uAgents,• *AI-Powered Personalisation:* Leverages the AS,agent1q07xd588w2te2e7jj89240jxgxz66fdft09typ052egt,https://github.com/yatharth2soni/F,Public GitHub repository provided,https://youtu.be/fb2Ulvm,5,fetchathon3.0-3050
+,,• *Interactive Review:* Integrates with Fetch.ai's a,,,,,,
+,,• *PDF Generation:* Converts the approved cover ,,,,,,
+,,• *Agent-Based Architecture:* Uses Python and Fe,,,,,,
+,,"*Technology Stack:* Python, Fetch.ai uAgents, AS",,,,,,
+,,The goal is to reduce repetitive application work w,,,,,,
+,,Working on this project has been an opportunity to,,,,,,
+News-Veriﬁer,uAgents,An autonomous AI agent built with Fetch.ai's uAge,https://agentverse.ai/agents/details/agent1qww5qeadtlq,http://github.com/heyitsyash67/ne,"Agent registered on Agentverse, Agent C",,5,fetchathon3.0-1311
+Repo Radar,uAgents,Finding the right open-source software is time-con,https://agentverse.ai/agents/details/agent1qtm6mf7f7y,https://github.com/Railick/Repo-Ra,"Agent registered on Agentverse, Agent C",https://drive.google.com,5,fetchathon3.0-7831
+VentureLens AI,uAgents,"Many aspiring founders invest signiﬁcant time, mo",https://agentverse.ai/agents/details/agent1q0rk9lamk3q,https://github.com/advikakhandelw,"Agent registered on Agentverse, Agent C",https://drive.google.com,5,fetchathon3.0-1996
+KrishiBazaar,uAgents,KrishiBazaar solves the problem of farmers strugg,https://agentverse.ai/agents/details/agent1q05ca3slnwt,https://github.com/architsinghal00,"Agent registered on Agentverse, Agent C",https://drive.google.com,5,fetchathon3.0-2715 
+Harvest Agent,uAgents,"Small sellers, like a brand launching a new hair trim",https://agentverse.ai/agents/details/agent1qfzd2jf0p9w,https://github.com/ChiragBhargava,"Agent registered on Agentverse, Agent C",,5,fetchathon3.0-7500
+FreightPact,uAgents,FreightPact addresses cold-chain logistics failures,https://agentverse.ai/agents/details/agent1q23pcy5gum,https://github.com/Akulbanxal/Fre,"Agent registered on Agentverse, Agent C",https://youtu.be/dEXWT,5,fetchathon3.0-8206
+EventPilot,uAgents,EventPilot is an AI-powered event planning agent t,,https://github.com/siddhant-jain-18,Public GitHub repository provided,,3,fetchathon3.0-1399
+Genesis,uAgents,"Agentverse has many agents, but users can’t tell w",https://agentverse.ai/agents/details/agent1qtamcwpaffz,https://github.com/kapish505/Gen,"Agent registered on Agentverse, Agent C",https://drive.google.com,5,fetchathon3.0-7214
+Orchestra,uAgents,Manufacturing companies often manage thousan,https://agentverse.ai/agents/details/agent1qfhpualnwf5,https://github.com/AbhikKumawat,"Agent registered on Agentverse, Agent C",,5,fetchathon3.0-2750
+SkillAudit,uAgents,"AI agents, like Claude Code, can now add skills str",https://agentverse.ai/agents/details/agent1qt6rjd3vu9yu,Github.com/Kal-MrNobody/Skill_Is,"Agent registered on Agentverse, Agent C",,3,fetchathon3.0-3668
+CareerMatch,uAgents,Students and early-career job seekers often spend,https://agentverse.ai/agents/details/agent1q2zr3l3kwda,https://github.com/Oblivionium/ca,"Agent registered on Agentverse, Agent C",,2,fetchathon3.0-4170
+Medico AI,uAgents,MedStock AI helps healthcare facilities ﬁnd medic,https://agentverse.ai/agents/details/agent1qfnaepxk9ph,https://github.com/Pavni0765/med,"Agent registered on Agentverse, Agent C",,5,fetchathon3.0-2379
+,,People changing or leaving jobs often face uncert,,,,,,
+,,CoverWise helps households understand what pro,,,,,,
+CoverWise,uAgents,,https://agentverse.ai/inspect/?uri=http%3A//127.0.0.1%3,https://github.com/swapnilyt1234/,"Agent registered on Agentverse, Agent C",https://drive.google.com,5,fetchathon3.0-6323
+,,"Specialized agents coordinate the user’s request, ",,,,,,
+,,The current implementation demonstrates quotat,,,,,,
+Project Name,Which framework did you use to build your agents,Provide a brief description of the real-world proble,Agentverse Agent Proﬁle URL,Public GitHub Repository URL,Mandatory Requirements Checklist,demo video URL,Rate your experience building with the ecosystem,Team ID
+,,DeleteMe: Autonomous DPDPA 2023 Rights Agen,,,,,,
+,,Overview,,,,,,
+,,"DeleteMe is an autonomous, decentralized multi-a",,,,,,
+,,The Problem,,,,,,
+,,Indian consumers interact daily with dozens of dig,,,,,,
+,,While Section 12 of India’s DPDPA 2023 legally gu,,,,,,
+,,What DeleteMe Does,,,,,,
+,,DeleteMe transforms complex legal privacy workﬂ,,,,,,
+,,Conversational Intake via ASI:One Pro: Users simp,,,,,,
+,,Autonomous Multi-Agent Fan-Out: The Concierge ,,,,,,
+,,Discovery Agent: Uses Model Context Protocol (M,,,,,,
+,,Drafter Agent: Synthesizes customized Section 12,,,,,,
+,,Cryptographic Human-in-the-Loop Gate: No notice,,,,,,
+DeleteMe,uAgents,Decentralized Agent Economic Protocol: Native Fe,agent1qfq66d3thuzjl620d06sqn88j0ey650up6ltwt46qhljr,https://github.com/pvashisth-07/D,"Agent registered on Agentverse, Agent C",https://drive.google.com,5,fetchathon3.0-6943
+,,Long-Running Autonomous Deadline Tracker: A pe,,,,,,
+,,Full Resolution: Conﬁrms complete deletion of pro,,,,,,
+,,Partial Retention Analysis: Accurately classiﬁes la,,,,,,
+,,Statutory Escalation: If a ﬁduciary remains silent p,,,,,,
+,,System Architecture & Technical Implementation,,,,,,
+,,DeleteMe is implemented as a production-grade ﬂ,,,,,,
+,,deleteme_concierge (agent1qfq66d3thuzjl620d06,,,,,,
+,,deleteme_discovery (agent1qtsk8vqfdywqg89msw,,,,,,
+,,deleteme_drafter (agent1q0su27nruzqk75kpwdte,,,,,,
+,,deleteme_dispatcher (agent1qwmqhv5ll2fswhhvf,,,,,,
+,,deleteme_tracker (agent1qfs4f9apm6hg066577z8,,,,,,
+,,deleteme_mock_company (agent1qwhk3gqawq5a,,,,,,
+,,The platform includes a persistent SQLite audit re,,,,,,
+,,Impact & Vision,,,,,,
+,,DeleteMe transforms privacy rights from passive l,,,,,,
+,,"In India, patients often struggle to ﬁnd suitable ho",,,,,,
+CareCompass AI,uAgents,,agent1q0q4fwqz3tlrjh2wtmjt20u6jt4ukmc4320pzwp8fgt,https://github.com/Mananfrfr/Care,"Agent registered on Agentverse, Agent C",,5,fetchathon3.0-3747
+,,CareCompass AIaddresses this problem through a,,,,,,
+Shivam Kapoor,uAgents,Everyone has signed up for hundreds of online ser,https://agentverse.ai/agents/details/agent1qvdaw2cl0jj0,https://github.com/roboshivam1/fo,"Agent registered on Agentverse, Agent C",https://youtu.be/iuaQPp,5,fetchathon3.0-1532
+,,The Dynamic WebMCP Network Agent turns cross,,,,,,
+,,Autonomous Multi-Store Discovery & Spec Norma,,,,,,
+Dynamic Webmcp,uAgents,Zero-Trust Human-in-the-Loop Authorization Gate,https://asi1.ai/ai/webmcp,https://github.com/TUSHAR00024/,"Agent registered on Agentverse, Agent C",,5,fetchathon3.0-7436
+,,Truthful Postcondition Veriﬁcation: Executes an in,,,,,,
+,,Native Fetch.ai On-Chain Settlement: Transitions f,,,,,,
+,,"During natural disasters (ﬂoods, earthquakes, sev",,,,,,
+,,Incomplete ﬁeld reports and duplicate phone calls,,,,,,
+Fetch-relief,uAgents,"Critical lifesaving items (water, trauma kits, power",https://agentverse.ai/agents/details/agent1qtduyduumv,https://github.com/AchalShrivastav,"Agent registered on Agentverse, Agent C",,5,fetchathon3.0-8602
+,,Resources are frequently double-allocated or assi,,,,,,
+,,Black-box LLMs hallucinate inaccurate quantities ,,,,,,
+MausamMitra,uAgents,Provides weather forecasts and transit risk assess,https://agentverse.ai/agents/details/agent1qwzwhwgk3,https://github.com/Hits-p/mausam,"Agent registered on Agentverse, Public G",,5,fetchathon3.0-2120
+BuyerSetu,uAgents,Evaluates potential buyer offers and compares se,https://agentverse.ai/agents/details/agent1qtgmthsczm,https://github.com/architsinghal00,"Agent registered on Agentverse, Public G",,5,fetchathon3.0-7761
+,,Frontend Enhancer is an AI-powered agent that de,,,,,,
+Frontend Enhancer,Plain Python,,,https://github.com/sharmanitin630,Public GitHub repository provided,,4,fetchathon3.0-1502
+,,"By combining automated accessibility testing, AI-d",,,,,,
+,,Millions of small shops in India still keep accounts,,,,,,
+Arth.ai,uAgents,,https://agentverse.ai/agents/details/agent1qfw2edq9jy9,https://github.com/suppiyush/arth,"Agent registered on Agentverse, Agent C",https://drive.google.com,5,fetchathon3.0-1899
+,,Arth is an AI accountant they can talk through voic,,,,,,
+,,"Early-career developers, students, and open-sourc",,,,,,
+,,Listicle Exhaustion: General search engines and jo,,,,,,
+,,Eligibility Ambiguity: Beginners struggle to determ,,,,,,
+OpportunityOS,uAgents,,https://agentverse.ai/agents/details/agent1qvgnthl5grpa,https://github.com/AchalShrivastav,"Agent registered on Agentverse, Agent C",,5,fetchathon3.0-9699
+,,Application Friction: Going from a discovery link to,,,,,,
+,,Disorganized Tracking: Bookmarks and drafts get ,,,,,,
+,,OpportunityOS solves this by converting high-leve,,,,,,
+LIFE LINK AI ,uAgents,"Autonomous Healthcare Navigation, Blood Dispat",https://agentverse.ai/agents/details/agent1q286w8axs5,https://github.com/THE-NAVVV/Lif,"Agent registered on Agentverse, Agent C",https://youtu.be/ZVtQvit,5,fetchathon3.0-4155
+CareRoute,uAgents,Our solution solves the problem that rural people f,https://agentverse.ai/agents/details/agent1q0m257wqy,https://github.com/manavbaid-neti,"Agent registered on Agentverse, Agent C",https://drive.google.com,4,fetchathon3.0-3441
+Life link,uAgents,BloodLink is an autonomous multi-agent emergen,https://agentverse.ai/agents/details/agent1qf4xk3nre45,https://github.com/Shubham-21-co,"Agent registered on Agentverse, Agent C",https://drive.google.com,5,fetchathon3.0-3806
+TripShield AI,uAgents,TripShield AI: Rescue & Refund is a ﬁve-agent syst,https://agentverse.ai/agents/details/agent1qdxd38fa97g,https://github.com/shhivamverma/,"Agent registered on Agentverse, Agent C",https://youtu.be/bMe5Z2,5,fetchathon3.0-1882
+Release proof,uAgents,"DevOps based project made to ﬁnd bugs, suggest",https://agentverse.ai/agents/details/agent1q07d0krg0th,https://github.com/swapnilyt1234/,"Agent registered on Agentverse, Agent C",,5,fetchathon3.0-6323
+[1] Responder updated this value.
+[2] Responder updated this value.
+[3] Responder updated this value.

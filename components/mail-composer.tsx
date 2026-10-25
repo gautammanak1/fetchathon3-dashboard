@@ -261,6 +261,36 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
     }
   }
 
+  const readPayload = async (response: Response) => {
+    const text = await response.text()
+    try {
+      return JSON.parse(text) as { error?: string; note?: string; jobId?: string; status?: string }
+    } catch {
+      if (response.status === 504) {
+        return { error: "The send was cut off before it finished. Start it again only for people who did not get it." }
+      }
+      return { error: "Could not send mail" }
+    }
+  }
+
+  const watchJob = async (jobId: string) => {
+    for (let attempt = 0; attempt < 400; attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 2000))
+      const response = await fetch(`/api/mail/send?job=${encodeURIComponent(jobId)}`)
+      const payload = await readPayload(response)
+      if (!response.ok) throw new Error(payload.error || "Could not check the send")
+      setResult(payload.note || "Sending")
+      if (payload.status === "done") {
+        toast.success(payload.note || "Mail sent")
+        return
+      }
+      if (payload.status === "error") {
+        toast.error(payload.note || "Mail send stopped")
+        return
+      }
+    }
+  }
+
   const send = async (test: boolean, force = false) => {
     setBusy(true)
     setResult(null)
@@ -281,14 +311,24 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
           force,
         }),
       })
-      const payload = (await response.json()) as { error?: string; note?: string }
+      const payload = await readPayload(response)
       if (!response.ok) {
         toast.error(payload.error || payload.note || "Could not send mail")
         setResult(payload.error || payload.note || "Could not send mail")
         return
       }
+      if (payload.jobId) {
+        setResult(payload.note || "Sending")
+        toast.success(payload.note || "Sending")
+        await watchJob(payload.jobId)
+        return
+      }
       toast.success(payload.note || "Mail sent")
       setResult(payload.note || "Mail sent")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send mail"
+      toast.error(message)
+      setResult(message)
     } finally {
       setBusy(false)
     }

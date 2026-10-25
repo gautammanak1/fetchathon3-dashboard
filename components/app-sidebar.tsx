@@ -17,9 +17,8 @@ import {
   LayoutDashboardIcon,
   MailCheckIcon,
   MailIcon,
+  FolderKanbanIcon,
   QrCodeIcon,
-  ScanLineIcon,
-  UtensilsCrossedIcon,
   UsersIcon,
   UsersRoundIcon,
 } from "lucide-react"
@@ -45,6 +44,11 @@ const adminNav = [
     icon: <UsersIcon />,
   },
   {
+    title: "Projects",
+    url: "/dashboard/projects",
+    icon: <FolderKanbanIcon />,
+  },
+  {
     title: "RSVP & QR",
     url: "/dashboard/actions",
     icon: <QrCodeIcon />,
@@ -53,16 +57,6 @@ const adminNav = [
     title: "Mail log",
     url: "/dashboard/mail-log",
     icon: <MailCheckIcon />,
-  },
-  {
-    title: "Check-in",
-    url: "/dashboard/check-in",
-    icon: <ScanLineIcon />,
-  },
-  {
-    title: "Lunch",
-    url: "/dashboard/lunch",
-    icon: <UtensilsCrossedIcon />,
   },
   {
     title: "Mail",

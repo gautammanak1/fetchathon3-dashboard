@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { getAdminSession } from "@/lib/auth"
 import { fillTemplate, readableName } from "@/lib/compose-mail"
+import { getMailJob, kickMailJobIfStale, startCustomMailJob } from "@/lib/mail-job"
 import { mailVenue } from "@/lib/event-venues"
 import { deriveTeamQrToken } from "@/lib/qr"
 import { loadRosterFast } from "@/lib/roster"
@@ -89,6 +90,28 @@ function audienceFrom(body: {
   return null
 }
 
+export async function GET(request: Request) {
+  const session = await getAdminSession()
+  if (!session) {
+    return NextResponse.json({ error: "Admin login required" }, { status: 401 })
+  }
+  const jobId = new URL(request.url).searchParams.get("job") || ""
+  const job = jobId ? await getMailJob(jobId) : null
+  if (!job || job.kind !== "custom") {
+    return NextResponse.json({ error: "That mail send was not found" }, { status: 404 })
+  }
+  await kickMailJobIfStale(job)
+  return NextResponse.json({
+    jobId: job.id,
+    status: job.status,
+    sent: job.sent_ids.length,
+    remaining: job.ids.length,
+    failed: job.failed_count,
+    total: job.total,
+    note: job.note,
+  })
+}
+
 export async function POST(request: Request) {
   const session = await getAdminSession()
   if (!session) {
@@ -144,6 +167,22 @@ export async function POST(request: Request) {
       : await resolveRecipients(audience!)
     if (recipients.length === 0) {
       return NextResponse.json({ error: "No valid email addresses to send to" }, { status: 400 })
+    }
+
+    if (!body?.test) {
+      const job = await startCustomMailJob({
+        emails: recipients.map((person) => person.email),
+        subject,
+        body: message,
+      })
+      return NextResponse.json({
+        ok: true,
+        queued: true,
+        jobId: job.id,
+        total: job.total,
+        sent: 0,
+        note: job.note,
+      })
     }
 
     const result = await sendComposedMail({

@@ -117,6 +117,78 @@ export async function resolveRecipients(audience: ComposeAudience) {
   return people
 }
 
+export async function sendComposedBatch(input: {
+  subject: string
+  body: string
+  emails: string[]
+  deadline: number
+}) {
+  const wanted = new Set(input.emails.map((email) => email.trim().toLowerCase()).filter(Boolean))
+  const byEmail = new Map<string, Recipient>()
+  try {
+    const roster = await loadRosterFast()
+    for (const row of roster.registrations) {
+      const person = personFrom(row)
+      if (person && wanted.has(person.email)) byEmail.set(person.email, person)
+    }
+  } catch (error) {
+    console.error("roster lookup for queued mail failed", error)
+  }
+  const remaining = [...wanted]
+  const sent: string[] = []
+  const failed: Array<{ email: string; error: string }> = []
+  const transporter = createSmtpTransport()
+  let first = true
+  try {
+    while (remaining.length > 0 && (first || Date.now() < input.deadline)) {
+      first = false
+      const email = remaining[0]
+      const person = byEmail.get(email) || {
+        id: "",
+        email,
+        name: readableName("", email),
+        team: "",
+        venue: "",
+        map: "",
+        confirm_url: "",
+        note: "",
+        address: "",
+        metroNote: "",
+        imageCaption: "",
+        imageUrl: "",
+        attachQr: false,
+        qrToken: "",
+        teamKey: "",
+      }
+      const subject = fillTemplate(input.subject, person).trim()
+      const body = fillTemplate(input.body, person).trim()
+      try {
+        await sendSmtpMail(
+          {
+            to: person.email,
+            toName: person.name,
+            subject,
+            text: composeMessageText(body),
+            html: composeMessageHtml(subject, body),
+          },
+          transporter,
+        )
+        sent.push(email)
+      } catch (error) {
+        failed.push({
+          email,
+          error: error instanceof Error ? error.message : "SMTP send failed",
+        })
+      }
+      remaining.shift()
+      if (remaining.length > 0 && Date.now() < input.deadline) await sleep(SEND_GAP_MS)
+    }
+  } finally {
+    transporter.close()
+  }
+  return { sent, failed, remaining }
+}
+
 export async function sendComposedMail(input: {
   subject: string
   body: string

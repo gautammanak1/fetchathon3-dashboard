@@ -3,6 +3,7 @@ import { after } from "next/server"
 
 import { db } from "@/lib/db"
 import { runQrBatch } from "@/lib/qr-batch"
+import { sendComposedBatch } from "@/lib/send-compose"
 
 export type MailJobMode = "generate" | "send"
 export type MailJobStatus = "running" | "done" | "error"
@@ -19,6 +20,8 @@ export type MailJob = {
   attempt: number
   status: MailJobStatus
   note: string
+  subject: string
+  message: string
   total: number
   locked_at: string | null
   updated_at: string | null
@@ -36,6 +39,8 @@ type JobRow = {
   attempt: number
   status: string
   note: string | null
+  subject: string | null
+  message: string | null
   total: number
   locked_at: Date | string | null
   updated_at: Date | string | null
@@ -98,6 +103,8 @@ function asJob(row: JobRow): MailJob {
     attempt: Number(row.attempt || 0),
     status,
     note: row.note || "",
+    subject: row.subject || "",
+    message: row.message || "",
     total: Number(row.total || 0),
     locked_at: asText(row.locked_at),
     updated_at: asText(row.updated_at),
@@ -226,6 +233,43 @@ export function kickMailJob(jobId: string) {
   after(() => postWorker(jobId))
 }
 
+export async function startCustomMailJob(input: { emails: string[]; subject: string; body: string }) {
+  const sql = await sqlOrThrow()
+  const emails = [...new Set(input.emails.map((email) => email.trim().toLowerCase()).filter(Boolean))]
+  if (!emails.length) throw new Error("No valid email addresses to send to")
+  const running = await sql<JobRow[]>`
+    select * from mail_send_jobs
+    where kind = 'custom' and status = 'running'
+    order by created_at desc
+    limit 1
+  `
+  if (running[0]) {
+    throw new Error("A mail send is already running. Wait for it to finish.")
+  }
+  const id = randomUUID()
+  const rows = await sql<JobRow[]>`
+    insert into mail_send_jobs (
+      id, kind, mode, force, only_selected, ids, sent_ids, total, note, subject, message
+    ) values (
+      ${id},
+      'custom',
+      'send',
+      false,
+      true,
+      ${textArray(emails)},
+      ${textArray([])},
+      ${emails.length},
+      ${`Sending ${emails.length} emails. You can leave this page.`},
+      ${input.subject},
+      ${input.body}
+    )
+    returning *
+  `
+  const job = asJob(rows[0])
+  kickMailJob(job.id)
+  return job
+}
+
 export async function kickMailJobIfStale(job: MailJob) {
   if (job.status !== "running") return
   const lockedAt = job.locked_at ? Date.parse(job.locked_at) : 0
@@ -300,10 +344,76 @@ async function saveMailJob(
   return asJob(rows[0])
 }
 
+async function advanceCustomMailJob(job: MailJob, started: number) {
+  while (job.status === "running" && job.ids.length > 0) {
+    const result = await sendComposedBatch({
+      subject: job.subject,
+      body: job.message,
+      emails: job.ids,
+      deadline: started + 20_000,
+    })
+    const sentIds = [...new Set([...job.sent_ids, ...result.sent])]
+    const failedCount = job.failed_count + result.failed.length
+    const sent = sentIds.length
+    const note =
+      result.remaining.length === 0
+        ? failedCount
+          ? `Sent ${sent}. ${failedCount} failed.`
+          : `Sent ${sent} ${sent === 1 ? "email" : "emails"}.`
+        : `Sent ${sent} of ${job.total}. Still sending.`
+    if (result.remaining.length === 0) {
+      await saveMailJob(job, {
+        ids: [],
+        sentIds,
+        failedCount,
+        attempt: 0,
+        status: sent > 0 ? "done" : "error",
+        note,
+        release: true,
+      })
+      return
+    }
+    job = await saveMailJob(job, {
+      ids: result.remaining,
+      sentIds,
+      failedCount,
+      attempt: 0,
+      note,
+    })
+    if (Date.now() - started > BUDGET_MS) break
+  }
+  if (job.status === "running" && job.ids.length > 0) {
+    await saveMailJob(job, { release: true })
+    await postWorker(job.id)
+  }
+}
+
 export async function advanceMailJob(jobId: string) {
   let job = await claimMailJob(jobId)
   if (!job) return
   const started = Date.now()
+  if (job.kind === "custom") {
+    try {
+      await advanceCustomMailJob(job, started)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Mail send stopped"
+      try {
+        await saveMailJob(job, {
+          attempt: job.attempt + 1,
+          status: job.attempt + 1 >= 3 ? "error" : "running",
+          note: message,
+          release: true,
+        })
+        if (job.attempt + 1 < 3) {
+          await sleep(2000)
+          await postWorker(job.id)
+        }
+      } catch {
+        // The next status check claims the job again once the lock is stale.
+      }
+    }
+    return
+  }
   try {
     while (job.status === "running" && job.ids.length > 0) {
       const result = await runQrBatch({
