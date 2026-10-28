@@ -34,6 +34,11 @@ const publicNav = [
     url: "/dashboard/registrations",
     icon: <UsersRoundIcon />,
   },
+  {
+    title: "Projects",
+    url: "/dashboard/projects",
+    icon: <FolderKanbanIcon />,
+  },
 ]
 
 const adminNav = [
@@ -42,11 +47,6 @@ const adminNav = [
     title: "Teams",
     url: "/dashboard/teams",
     icon: <UsersIcon />,
-  },
-  {
-    title: "Projects",
-    url: "/dashboard/projects",
-    icon: <FolderKanbanIcon />,
   },
   {
     title: "RSVP & QR",
