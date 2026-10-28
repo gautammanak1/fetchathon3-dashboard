@@ -244,7 +244,20 @@ export async function startCustomMailJob(input: { emails: string[]; subject: str
     limit 1
   `
   if (running[0]) {
-    throw new Error("A mail send is already running. Wait for it to finish.")
+    const updatedAt = Date.parse(asText(running[0].updated_at) || "")
+    const stale = !Number.isFinite(updatedAt) || Date.now() - updatedAt > 3 * 60_000
+    if (stale && !running[0].locked_at) {
+      await sql`
+        update mail_send_jobs
+        set status = 'error',
+            locked_at = null,
+            updated_at = now(),
+            note = 'Stopped because the send did not continue.'
+        where id = ${running[0].id} and status = 'running'
+      `
+    } else {
+      throw new Error("A mail send is already running. Wait for it to finish.")
+    }
   }
   const id = randomUUID()
   const rows = await sql<JobRow[]>`
@@ -350,7 +363,7 @@ async function advanceCustomMailJob(job: MailJob, started: number) {
       subject: job.subject,
       body: job.message,
       emails: job.ids,
-      deadline: started + 20_000,
+      deadline: started + 240_000,
     })
     const sentIds = [...new Set([...job.sent_ids, ...result.sent])]
     const failedCount = job.failed_count + result.failed.length
@@ -384,7 +397,11 @@ async function advanceCustomMailJob(job: MailJob, started: number) {
   }
   if (job.status === "running" && job.ids.length > 0) {
     await saveMailJob(job, { release: true })
-    await postWorker(job.id)
+    try {
+      await postWorker(job.id)
+    } catch (error) {
+      console.error("custom mail queue continue failed", error)
+    }
   }
 }
 

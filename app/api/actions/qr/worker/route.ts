@@ -4,7 +4,7 @@ import { after } from "next/server"
 import { advanceMailJob, queueTokenMatches } from "@/lib/mail-job"
 
 export const dynamic = "force-dynamic"
-export const maxDuration = 60
+export const maxDuration = 300
 
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as { jobId?: string; token?: string } | null

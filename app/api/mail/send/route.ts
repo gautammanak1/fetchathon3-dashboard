@@ -117,10 +117,6 @@ export async function POST(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Admin login required" }, { status: 401 })
   }
-  if (!isSmtpConfigured()) {
-    return NextResponse.json({ error: "Set SMTP_PASSWORD before sending mail" }, { status: 500 })
-  }
-
   const body = (await request.json().catch(() => null)) as {
     subject?: string
     body?: string
@@ -133,6 +129,10 @@ export async function POST(request: Request) {
     force?: boolean
     kind?: string
   } | null
+
+  if (!isSmtpConfigured()) {
+    return NextResponse.json({ error: "Set SMTP_PASSWORD before sending mail" }, { status: 500 })
+  }
 
   const kind = body?.kind === "rsvp" || body?.kind === "reject" ? body.kind : "custom"
   const audience = audienceFrom(body || {})

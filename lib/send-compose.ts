@@ -117,6 +117,26 @@ export async function resolveRecipients(audience: ComposeAudience) {
   return people
 }
 
+function blankPerson(email: string): Recipient {
+  return {
+    id: "",
+    email,
+    name: readableName("", email),
+    team: "",
+    venue: "",
+    map: "",
+    confirm_url: "",
+    note: "",
+    address: "",
+    metroNote: "",
+    imageCaption: "",
+    imageUrl: "",
+    attachQr: false,
+    qrToken: "",
+    teamKey: "",
+  }
+}
+
 export async function sendComposedBatch(input: {
   subject: string
   body: string
@@ -143,23 +163,7 @@ export async function sendComposedBatch(input: {
     while (remaining.length > 0 && (first || Date.now() < input.deadline)) {
       first = false
       const email = remaining[0]
-      const person = byEmail.get(email) || {
-        id: "",
-        email,
-        name: readableName("", email),
-        team: "",
-        venue: "",
-        map: "",
-        confirm_url: "",
-        note: "",
-        address: "",
-        metroNote: "",
-        imageCaption: "",
-        imageUrl: "",
-        attachQr: false,
-        qrToken: "",
-        teamKey: "",
-      }
+      const person = byEmail.get(email) || blankPerson(email)
       const subject = fillTemplate(input.subject, person).trim()
       const body = fillTemplate(input.body, person).trim()
       try {
