@@ -1099,7 +1099,68 @@ function lineWithLinks(line: string) {
     .join("")
 }
 
+export const WINNERS_MAIL_SUBJECT = "And the winners of Fetch-A-Thon 3.0 are"
+export const WINNERS_MAIL_BODY = "Hi {{name}},\n\n[[winners]]"
+
+const WINNER_ROWS: Array<{ place: string; name: string; meta: string }> = [
+  { place: "National Winner", name: "Arth.ai", meta: "Team Parity Check · fetchathon3.0-1899" },
+  { place: "1st Runner-Up", name: "Metro Coordinator", meta: "fetchathon3.0-3201" },
+  { place: "2nd Runner-Up", name: "StartSafe INDIA", meta: "Team Terminal Breakers · fetchathon3.0-4064" },
+  { place: "Best Multi-Agent Workflow", name: "AgentReady", meta: "Team ReadyStack · fetchathon3.0-3334" },
+  { place: "Best Multi-Agent Workflow", name: "KrishiBazaar", meta: "Team TechAstra · fetchathon3.0-2715" },
+  { place: "Best Agentverse Deployment", name: "MediTwin", meta: "Team DevPair · fetchathon3.0-1450" },
+  { place: "Best Agentverse Deployment", name: "SupplyShock", meta: "Team CREED · fetchathon3.0-1118" },
+  { place: "Best Personal AI", name: "DayMate", meta: "Team HolySpirits · fetchathon3.0-1556" },
+]
+
+function winnerCard(place: string, name: string, meta: string) {
+  return (
+    `<tr><td style="padding:0 0 10px;">${softCard(
+      `${eyebrow(place)}` +
+        `<p style="margin:6px 0 0;font-size:22px;line-height:1.25;font-weight:800;color:#1a1548;font-family:${FONT};">${escapeHtml(name)}</p>` +
+        `<p style="margin:6px 0 0;font-size:14px;line-height:1.45;color:#3d3958;font-family:${FONT};">${escapeHtml(meta)}</p>`,
+    )}</td></tr>`
+  )
+}
+
+function winnersEmailInner(greeting: string) {
+  const cards = WINNER_ROWS.map((row) => winnerCard(row.place, row.name, row.meta)).join("")
+  return brandedRows(
+    `<tr><td style="padding:0 0 14px;font-family:${FONT};">` +
+      `<p style="margin:0 0 8px;font-size:28px;line-height:1.2;font-weight:800;color:#1a1548;">${escapeHtml(greeting || "Hi,")}</p>` +
+      `<p style="margin:0;font-size:16px;line-height:1.6;color:#2c2750;">The final results of Fetch-A-Thon 3.0 are in. Here are the winners.</p>` +
+      `</td></tr>` +
+      cards +
+      `<tr><td style="padding:6px 0 0;">${softCard(
+        `${eyebrow("Certificates")}` +
+          `<p style="margin:6px 0 0;font-size:18px;line-height:1.35;font-weight:800;color:#1a1548;font-family:${FONT};">All certificates will be released soon.</p>` +
+          `<p style="margin:8px 0 0;font-size:15px;line-height:1.6;color:#2c2750;font-family:${FONT};">Thank you for building with us.</p>` +
+          `<p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:#5c5678;font-family:${FONT};">Fetch-A-Thon team</p>`,
+      )}</td></tr>`,
+  )
+}
+
+function winnersPlainText(greeting: string) {
+  const lines = [
+    greeting || "Hi,",
+    "",
+    "The final results of Fetch-A-Thon 3.0 are in. Here are the winners.",
+    "",
+    ...WINNER_ROWS.map((row) => `${row.place}: ${row.name} (${row.meta})`),
+    "",
+    "All certificates will be released soon.",
+    "",
+    "Thank you for building with us.",
+    "Fetch-A-Thon team",
+  ]
+  return lines.join("\n")
+}
+
 export function composeMessageHtml(subject: string, body: string) {
+  if (body.includes("[[winners]]")) {
+    const greeting = editorText(body.replaceAll("[[winners]]", "")).replace(/\s+/g, " ").trim()
+    return wrapEmail(subject, `${winnersEmailInner(greeting)}${mailFooter()}`)
+  }
   const trimmed = body.trim()
   if (/<[a-z][\s\S]*>/i.test(trimmed)) {
     const inner = `<tr><td class="pad" style="padding:20px 24px 8px;">${styleEditorHtml(trimmed)}</td></tr>`
@@ -1126,5 +1187,9 @@ export function composeMessageHtml(subject: string, body: string) {
 }
 
 export function composeMessageText(body: string) {
+  if (body.includes("[[winners]]")) {
+    const greeting = editorText(body.replaceAll("[[winners]]", "")).replace(/\s+/g, " ").trim()
+    return winnersPlainText(greeting)
+  }
   return editorText(body)
 }

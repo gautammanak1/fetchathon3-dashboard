@@ -32,7 +32,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { COMPOSE_EMAIL_RE, fillTemplate, parseEmailList } from "@/lib/compose-mail"
-import { composeMessageHtml } from "@/lib/email-templates"
+import { composeMessageHtml, WINNERS_MAIL_BODY, WINNERS_MAIL_SUBJECT } from "@/lib/email-templates"
 import { mailVenue } from "@/lib/event-venues"
 import type { MailTemplate } from "@/lib/mail-template-store"
 import { useRoster } from "@/hooks/use-roster"
@@ -413,7 +413,22 @@ export function MailComposer({ initial }: { initial?: RosterPayload | null }) {
                 />
               </div>
               <div className="grid gap-2">
-                <Label>Message</Label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label>Message</Label>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="outline"
+                    onClick={() => {
+                      setSubject(WINNERS_MAIL_SUBJECT)
+                      setBody(WINNERS_MAIL_BODY)
+                      setPack("confirm")
+                      setSelectedIds([])
+                    }}
+                  >
+                    Winners result
+                  </Button>
+                </div>
                 <MailEditor value={body} onChange={setBody} />
                 <p className="text-sm text-muted-foreground">
                   Use {"{{name}}"}, {"{{team}}"}, {"{{venue}}"}, {"{{map}}"}, and {"{{confirm_url}}"}.
