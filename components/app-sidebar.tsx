@@ -25,6 +25,14 @@ import {
 
 const publicNav = [
   {
+    title: "Projects",
+    url: "/dashboard/projects",
+    icon: <FolderKanbanIcon />,
+  },
+]
+
+const adminNav = [
+  {
     title: "Overview",
     url: "/dashboard",
     icon: <LayoutDashboardIcon />,
@@ -34,14 +42,6 @@ const publicNav = [
     url: "/dashboard/registrations",
     icon: <UsersRoundIcon />,
   },
-  {
-    title: "Projects",
-    url: "/dashboard/projects",
-    icon: <FolderKanbanIcon />,
-  },
-]
-
-const adminNav = [
   ...publicNav,
   {
     title: "Teams",
@@ -76,7 +76,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="h-10 data-[slot=sidebar-menu-button]:p-1.5!"
             >
-              <Link href="/dashboard">
+              <Link href={isAdmin ? "/dashboard" : "/dashboard/projects"}>
                 <FetchathonLogo />
               </Link>
             </SidebarMenuButton>

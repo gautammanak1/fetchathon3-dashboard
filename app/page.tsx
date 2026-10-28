@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation"
 
-export default function Home() {
-  redirect("/dashboard")
+import { getAdminSession } from "@/lib/auth"
+
+export default async function Home() {
+  const admin = await getAdminSession()
+  redirect(admin ? "/dashboard" : "/dashboard/projects")
 }

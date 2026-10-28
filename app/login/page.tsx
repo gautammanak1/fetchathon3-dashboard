@@ -98,7 +98,7 @@ export default function LoginPage() {
               {busy ? "Signing in..." : "Sign in"}
             </Button>
             <Button variant="ghost" asChild>
-              <Link href="/dashboard">Back to view-only dashboard</Link>
+              <Link href="/dashboard/projects">Back to projects</Link>
             </Button>
           </form>
         </CardContent>
