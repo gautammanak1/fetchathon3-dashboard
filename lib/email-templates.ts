@@ -1140,6 +1140,81 @@ function winnersEmailInner(greeting: string) {
   )
 }
 
+function winnerPlaceLine(place: string) {
+  if (place === "Best Multi-Agent Workflow" || place === "Best Agentverse Deployment") {
+    return `Congratulations. You have won ${place} at Fetch-A-Thon 3.0.`
+  }
+  if (place === "Best Personal AI") {
+    return "Congratulations. You are the Best Personal AI winner of Fetch-A-Thon 3.0."
+  }
+  return `Congratulations. You are the ${place} of Fetch-A-Thon 3.0.`
+}
+
+export function winnerCongratsSubject(place: string) {
+  if (place === "Best Multi-Agent Workflow" || place === "Best Agentverse Deployment") {
+    return `Congratulations — you won ${place} at Fetch-A-Thon 3.0`
+  }
+  return `Congratulations — you are the ${place} of Fetch-A-Thon 3.0`
+}
+
+export function winnerCongratsHtml(input: {
+  leaderName: string
+  projectName: string
+  place: string
+  teamId: string
+  teamName: string
+}) {
+  const raw = input.leaderName.trim().split(/\s+/)[0] || "there"
+  const first = raw.charAt(0).toUpperCase() + raw.slice(1)
+  const greeting = `Hi ${first},`
+  const team = input.teamName.trim()
+  const meta = [team && !/\[object object\]/i.test(team) ? team : "", input.teamId].filter(Boolean).join(" · ")
+  return wrapEmail(
+    winnerCongratsSubject(input.place),
+    `${brandedRows(
+      `<tr><td style="padding:0 0 14px;font-family:${FONT};">` +
+        `<p style="margin:0 0 8px;font-size:28px;line-height:1.2;font-weight:800;color:#1a1548;">${escapeHtml(greeting)}</p>` +
+        `<p style="margin:0;font-size:16px;line-height:1.6;color:#2c2750;">${escapeHtml(winnerPlaceLine(input.place))}</p>` +
+        `</td></tr>` +
+        winnerCard(input.place, input.projectName, meta) +
+        `<tr><td style="padding:4px 0 0;">${softCard(
+          `<p style="margin:0;font-size:15px;line-height:1.6;color:#2c2750;font-family:${FONT};">This note is for your team. Your teammates are copied on this email.</p>` +
+            `<p style="margin:10px 0 0;font-size:15px;line-height:1.6;color:#2c2750;font-family:${FONT};">All certificates will be released soon.</p>` +
+            `<p style="margin:10px 0 0;font-size:15px;line-height:1.6;color:#2c2750;font-family:${FONT};">Thank you for building with us.</p>` +
+            `<p style="margin:12px 0 0;font-size:14px;line-height:1.5;color:#5c5678;font-family:${FONT};">Fetch-A-Thon team</p>`,
+        )}</td></tr>`,
+    )}${mailFooter()}`,
+  )
+}
+
+export function winnerCongratsText(input: {
+  leaderName: string
+  projectName: string
+  place: string
+  teamId: string
+  teamName: string
+}) {
+  const raw = input.leaderName.trim().split(/\s+/)[0] || "there"
+  const first = raw.charAt(0).toUpperCase() + raw.slice(1)
+  const team = input.teamName.trim()
+  const meta = [team && !/\[object object\]/i.test(team) ? team : "", input.teamId].filter(Boolean).join(" · ")
+  return [
+    `Hi ${first},`,
+    "",
+    winnerPlaceLine(input.place),
+    "",
+    `${input.place}: ${input.projectName}`,
+    meta,
+    "",
+    "This note is for your team. Your teammates are copied on this email.",
+    "",
+    "All certificates will be released soon.",
+    "",
+    "Thank you for building with us.",
+    "Fetch-A-Thon team",
+  ].join("\n")
+}
+
 function winnersPlainText(greeting: string) {
   const lines = [
     greeting || "Hi,",
