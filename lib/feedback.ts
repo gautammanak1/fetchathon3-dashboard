@@ -1,5 +1,8 @@
-import { db } from "@/lib/db"
+import { db, isoTime } from "@/lib/db"
 import { FEEDBACK_AGAIN, FEEDBACK_AREAS, FEEDBACK_CITIES, FEEDBACK_ROLES } from "@/lib/feedback-options"
+import type { FeedbackEntry } from "@/lib/feedback-types"
+
+export type { FeedbackEntry } from "@/lib/feedback-types"
 
 export type FeedbackInput = {
   name: string
@@ -62,6 +65,58 @@ export function parseFeedback(body: unknown): FeedbackInput {
     asi1Feedback: clipBlock(item.asi1Feedback, 4000),
     anythingElse: clipBlock(item.anythingElse, 4000),
   }
+}
+
+type FeedbackDbRow = {
+  id: string
+  created_at: Date | string
+  name: string
+  email: string
+  team_id: string
+  city: string
+  role: string
+  rating: number | null
+  went_well: string
+  problems: string
+  problem_areas: string[] | null
+  use_again: string
+  fix_next: string
+  tech_feedback: string
+  asi1_feedback: string
+  anything_else: string
+}
+
+export async function listFeedback(): Promise<FeedbackEntry[]> {
+  const sql = db()
+  if (!sql) return []
+  const rows = await sql<FeedbackDbRow[]>`
+    select
+      id, created_at, name, email, team_id, city, role, rating, went_well, problems,
+      problem_areas, use_again, fix_next, tech_feedback, asi1_feedback, anything_else
+    from feedback
+    order by created_at desc
+  `
+  return rows.map((row) => {
+    const rating = Number(row.rating)
+    return {
+      id: row.id,
+      createdAt: isoTime(row.created_at) || "",
+      name: row.name || "",
+      email: row.email || "",
+      teamId: row.team_id || "",
+      city: row.city || "",
+      role: row.role || "",
+      rating: Number.isInteger(rating) && rating >= 1 && rating <= 5 ? rating : null,
+      wentWell: row.went_well || "",
+      problems: row.problems || "",
+      problemAreas: Array.isArray(row.problem_areas) ? row.problem_areas.filter(Boolean) : [],
+      useAgain: row.use_again || "",
+      fixNext: row.fix_next || "",
+      techFeedback: row.tech_feedback || "",
+      asi1Feedback: row.asi1_feedback || "",
+      anythingElse: row.anything_else || "",
+    }
+  })
 }
 
 export async function saveFeedback(input: FeedbackInput) {

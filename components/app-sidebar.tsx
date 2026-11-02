@@ -17,6 +17,7 @@ import {
   LayoutDashboardIcon,
   MailCheckIcon,
   MailIcon,
+  MessageSquareTextIcon,
   FolderKanbanIcon,
   QrCodeIcon,
   UsersIcon,
@@ -52,6 +53,11 @@ const adminNav = [
     title: "RSVP & QR",
     url: "/dashboard/actions",
     icon: <QrCodeIcon />,
+  },
+  {
+    title: "Feedback",
+    url: "/dashboard/feedback",
+    icon: <MessageSquareTextIcon />,
   },
   {
     title: "Mail log",
