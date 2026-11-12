@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useAuth } from "@/hooks/use-auth"
 import {
+  AwardIcon,
   LayoutDashboardIcon,
   MailCheckIcon,
   MailIcon,
@@ -58,6 +59,11 @@ const adminNav = [
     title: "Feedback",
     url: "/dashboard/feedback",
     icon: <MessageSquareTextIcon />,
+  },
+  {
+    title: "Certificates",
+    url: "/dashboard/certificates",
+    icon: <AwardIcon />,
   },
   {
     title: "Mail log",
